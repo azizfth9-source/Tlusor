@@ -83,8 +83,29 @@ async function loadTx(){try{S.tx=await api('listTx',{tanggal:S.tgl})}catch(e){to
 async function loadKas(){try{S.kas=await api('listKas',{})}catch(e){toast(e.message,1)}render()}
 async function voidTx(id){const pin=prompt('Masukkan PIN Owner untuk VOID '+id);if(!pin)return;try{await api('voidTx',{id,pin});toast('Transaksi di-VOID');loadTx()}catch(e){toast(e.message,1)}}
 async function simpanKas(){const j=+$('#kj').value,k=$('#kk').value;try{await api('addKas',{jenis:S.jenis,jumlah:j,keterangan:k});toast(S.jenis+' tersimpan \u2713');loadKas()}catch(e){toast(e.message,1)}}
-function go(t){S.tab=t;S.sheet=null;render();if(t==='riwayat')loadTx();if(t==='kas')loadKas()}
+function go(t){S.tab=t;S.sheet=null;render();if(t==='riwayat')loadTx();if(t==='kas')loadKas();if(t==='menu')loadMenu()}
 
+
+const CFG=[['Opsi','Opsi order (Ukuran / Es / Gula)',['Jenis','Nama','Selisih Harga']],['KategoriOrder','Kategori order & markup harga',['Nama','Selisih Harga']],['MetodeBayar','Metode bayar',['Nama']]];
+S.all=[];
+const refreshInit=async()=>{S.init=await api('init');if(!S.init.kategori.find(k=>k.Nama===S.kat))S.kat=S.init.kategori[0]?.Nama};
+async function loadMenu(){try{S.all=await api('listProduk')}catch(e){toast(e.message,1)}render()}
+const kats=()=>[...new Set((S.all||[]).map(p=>p.Kategori).filter(Boolean))];
+function editMenu(sku){const p=S.all.find(x=>String(x.SKU)===sku)||{SKU:'',Nama:'',Kategori:'',Harga:'',Aktif:true,Foto:''};S.sheet={t:'produk',f:{...p}};render()}
+function pilihFoto(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),m=Math.min(1,240/Math.max(im.width,im.height));c.width=im.width*m;c.height=im.height*m;c.getContext('2d').drawImage(im,0,0,c.width,c.height);S.sheet.f.Foto=c.toDataURL('image/jpeg',.7);render()};im.src=e.target.result};r.readAsDataURL(f)}
+async function simpanMenu(){const f=S.sheet.f;try{await api('saveProduk',{sku:f.SKU,nama:f.Nama,kategori:f.Kategori,harga:f.Harga,aktif:f.Aktif!==false,foto:f.Foto});toast('Menu tersimpan \u2713');S.sheet=null;await refreshInit();await loadMenu()}catch(e){toast(e.message,1)}}
+const cfgRows=n=>n==='Opsi'?S.init.opsi:n==='KategoriOrder'?S.init.kategori:S.init.metode.map(x=>({Nama:x}));
+function cfgBox([n,t,cols]){
+  const R=cfgRows(n).map((r,x)=>`<div class=row><span>${cols.map(c=>c==='Selisih Harga'?'+'+Number(r[c]).toLocaleString('id-ID'):esc(r[c])).join(' \u00b7 ')}</span><button class=chip onclick="delCfg('${n}',${x})">Hapus</button></div>`).join('');
+  const F=cols.map((c,i)=>c==='Jenis'?`<select id="${n}_${i}" class=in><option>Ukuran</option><option>Es</option><option>Gula</option></select>`:`<input id="${n}_${i}" class=in placeholder="${c==='Selisih Harga'?'Selisih harga (Rp)':c}" ${c==='Selisih Harga'?'type=number inputmode=numeric':''}>`).join('');
+  return `<div class=box><b>${t}</b>${R}<div style="margin-top:8px">${F}<button class="btn ghost" onclick="addCfg('${n}')">+ Simpan</button></div></div>`}
+async function addCfg(n){const cols=CFG.find(c=>c[0]===n)[2],data={};cols.forEach((c,i)=>data[c]=document.getElementById(n+'_'+i).value);try{await api('simpanBaris',{sheet:n,data});await refreshInit();toast('Tersimpan \u2713')}catch(e){toast(e.message,1)}render()}
+async function delCfg(n,i){if(!confirm('Hapus data ini?'))return;const r=cfgRows(n)[i],key={};(n==='Opsi'?['Jenis','Nama']:['Nama']).forEach(c=>key[c]=r[c]);try{await api('hapusBaris',{sheet:n,key});await refreshInit()}catch(e){toast(e.message,1)}render()}
+function vMenu(){
+  const P=S.all||[];
+  const L=P.length?P.map(p=>`<button class=card style="flex-direction:row;align-items:center;gap:10px;width:100%;margin-bottom:8px;${p.Aktif===false?'opacity:.5':''}" onclick="editMenu('${esc(p.SKU)}')"><div class=ph style="width:56px;height:56px;margin:0;font-size:24px">${p.Foto?`<img src="${esc(p.Foto)}">`:'\u2615'}</div><div style="flex:1"><b>${esc(p.Nama)}</b><br><small>${esc(p.Kategori)} \u00b7 ${rp(p.Harga)}${p.Aktif===false?' \u00b7 nonaktif':''}</small></div></button>`).join(''):'<div class=empty>Belum ada menu.</div>';
+  return `<button class="btn ac" onclick="editMenu('')" style="margin-bottom:12px">+ Tambah Menu</button>${L}<h2 style="margin-top:20px">Pengaturan Order</h2>`+CFG.map(cfgBox).join('')}
+function vForm(){const f=S.sheet.f;return `<h2>${f.SKU?'Edit Menu':'Menu Baru'}</h2><div class=ph style="height:120px" onclick="document.getElementById('ff').click()">${f.Foto?`<img src="${esc(f.Foto)}">`:'<span style="font-size:15px;color:var(--mut)">Ketuk untuk pilih foto</span>'}</div><input id=ff type=file accept="image/*" hidden onchange="pilihFoto(this)"><input class=in placeholder="Nama menu" value="${esc(f.Nama)}" oninput="S.sheet.f.Nama=this.value"><input class=in list=kl placeholder="Kategori" value="${esc(f.Kategori)}" oninput="S.sheet.f.Kategori=this.value"><datalist id=kl>${kats().map(k=>`<option value="${esc(k)}">`).join('')}</datalist><input class=in type=number inputmode=numeric placeholder="Harga (Rp)" value="${esc(f.Harga)}" oninput="S.sheet.f.Harga=this.value"><label class=row style="border:0"><span>Tampil di kasir</span><input type=checkbox ${f.Aktif!==false?'checked':''} onchange="S.sheet.f.Aktif=this.checked" style="width:24px;height:24px"></label><button class="btn ac" onclick="simpanMenu()">Simpan Menu</button>`}
 function vKasir(){
   const q=S.q.toLowerCase(),ps=S.init.produk.filter(p=>String(p.Nama).toLowerCase().includes(q));
   return `<input class=in placeholder="\ud83d\udd0d Cari menu" value="${esc(S.q)}" onchange="S.q=this.value;render()">`+
@@ -104,6 +125,7 @@ function vSheet(){const s=S.sheet;if(!s)return'';let h='';
   ${S.bayar.map((b,x)=>`<div style="display:flex;gap:8px"><select class=in style="flex:1" onchange="S.bayar[${x}].metode=this.value">${S.init.metode.map(m=>`<option ${m===b.metode?'selected':''}>${esc(m)}</option>`).join('')}</select><input id=bj${x} class=in style="flex:1" type=number inputmode=numeric placeholder="Jumlah" value="${b.jumlah}" oninput="S.bayar[${x}].jumlah=this.value;sum()"></div>`).join('')}
   <div style="display:flex;gap:8px;margin-bottom:8px"><button class="btn ghost" onclick="S.bayar.push({metode:S.init.metode[0],jumlah:''});render()">+ Metode</button><button class="btn ghost" onclick="S.bayar=[{metode:S.bayar[0].metode,jumlah:total()}];render()">Uang pas</button></div><div id=sum></div><button id=go class="btn ac" onclick="simpan()">Simpan Transaksi</button>`}
  if(s.t==='sukses'){h=`<h2 class=ok>\u2713 Tersimpan</h2><div class=row><span>Total</span><b>${rp(S.last.total)}</b></div><div class=row><span>Kembalian</span><b>${rp(S.last.kembalian)}</b></div><div style="display:grid;gap:8px;margin-top:12px"><button class=btn onclick="cetak(S.last)">\ud83d\udda8 Cetak Struk</button><button class="btn ghost" onclick="cetak(S.last,1)">\ud83c\udff7 Cetak Label</button><button class="btn ac" onclick="S.sheet=null;render()">Order Baru</button></div>`}
+ if(s.t==='produk')h=vForm();
  return `<div class=ov onclick="if(event.target===this&&S.sheet.t!=='sukses'){S.sheet=null;render()}"><div class=sheet>${h}</div></div>`}
 function chg(x,d){S.cart[x].qty+=d;if(S.cart[x].qty<1)S.cart.splice(x,1);if(!S.cart.length)S.sheet=null;render()}
 
@@ -111,9 +133,9 @@ function render(){
   const A=$('#app');
   if(!S.token||!S.init){A.innerHTML=`<div class=login><div class=logo>\u2615</div><h2>Kopi Tlusor POS</h2><input id=u class=in placeholder=Username autocapitalize=off><input id=p class=in type=password placeholder=Password><button class="btn ac" onclick="doLogin()" ${S.busy?'disabled':''}>${S.busy?'Memuat\u2026':'Masuk'}</button></div>`;
     if(S.token&&!S.init&&!S.busy){S.busy=1;boot().then(()=>{S.busy=0;render()}).catch(()=>{S.busy=0;logout()})}return}
-  const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas}[S.tab]();
+  const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,menu:vMenu}[S.tab]();
   A.innerHTML=`<div class=wrap>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">\ud83d\uded2 ${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
-  <div class=nav>${[['kasir','\ud83e\uddfe','Kasir'],['riwayat','\ud83d\udd58','Riwayat'],['kas','\ud83d\udcb5','Kas']].map(([k,i,n])=>`<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><b>${i}</b>${n}</button>`).join('')}<button onclick="if(confirm('Keluar?'))logout()"><b>\ud83d\udeaa</b>Keluar</button></div>${vSheet()}`;
+  <div class=nav>${[['kasir','\ud83e\uddfe','Kasir'],['riwayat','\ud83d\udd58','Riwayat'],['kas','\ud83d\udcb5','Kas']].concat(S.user&&S.user.role==='Owner'?[['menu','\u2615','Menu']]:[]).map(([k,i,n])=>`<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><b>${i}</b>${n}</button>`).join('')}<button onclick="if(confirm('Keluar?'))logout()"><b>\ud83d\udeaa</b>Keluar</button></div>${vSheet()}`;
   if(S.sheet&&S.sheet.t==='bayar')sum();
 }
 render();
