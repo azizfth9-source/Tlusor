@@ -89,7 +89,7 @@ function go(t){S.tab=t;S.sheet=null;render();if(t==='riwayat')loadTx();if(t==='k
 const CFG=[['Opsi','Opsi order (Ukuran / Es / Gula)',['Jenis','Nama','Selisih Harga']],['KategoriOrder','Kategori order & markup harga',['Nama','Selisih Harga']],['MetodeBayar','Metode bayar',['Nama']]];
 S.all=[];
 const refreshInit=async()=>{S.init=await api('init');if(!S.init.kategori.find(k=>k.Nama===S.kat))S.kat=S.init.kategori[0]?.Nama};
-async function loadMenu(){try{S.all=await api('listProduk')}catch(e){toast(e.message,1)}render()}
+async function loadMenu(){try{S.all=await api('listProduk')}catch(e){toast(e.message,1)}render();await refHd();render()}
 const kats=()=>[...new Set((S.all||[]).map(p=>p.Kategori).filter(Boolean))];
 function editMenu(sku){const p=S.all.find(x=>String(x.SKU)===sku)||{SKU:'',Nama:'',Kategori:'',Harga:'',Aktif:true,Foto:''};S.sheet={t:'produk',f:{...p}};render()}
 function pilihFoto(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),m=Math.min(1,240/Math.max(im.width,im.height));c.width=im.width*m;c.height=im.height*m;c.getContext('2d').drawImage(im,0,0,c.width,c.height);S.sheet.f.Foto=c.toDataURL('image/jpeg',.7);render()};im.src=e.target.result};r.readAsDataURL(f)}
@@ -103,9 +103,9 @@ async function addCfg(n){const cols=CFG.find(c=>c[0]===n)[2],data={};cols.forEac
 async function delCfg(n,i){if(!confirm('Hapus data ini?'))return;const r=cfgRows(n)[i],key={};(n==='Opsi'?['Jenis','Nama']:['Nama']).forEach(c=>key[c]=r[c]);try{await api('hapusBaris',{sheet:n,key});await refreshInit()}catch(e){toast(e.message,1)}render()}
 function vMenu(){
   const P=S.all||[];
-  const L=P.length?P.map(p=>`<button class=card style="flex-direction:row;align-items:center;gap:10px;width:100%;margin-bottom:8px;${p.Aktif===false?'opacity:.5':''}" onclick="editMenu('${esc(p.SKU)}')"><div class=ph style="width:56px;height:56px;margin:0;font-size:24px">${p.Foto?`<img src="${esc(p.Foto)}">`:'\u2615'}</div><div style="flex:1"><b>${esc(p.Nama)}</b><br><small>${esc(p.Kategori)} \u00b7 ${rp(p.Harga)}${p.Aktif===false?' \u00b7 nonaktif':''}</small></div></button>`).join(''):'<div class=empty>Belum ada menu.</div>';
+  const L=P.length?P.map(p=>`<button class=card style="flex-direction:row;align-items:center;gap:10px;width:100%;margin-bottom:8px;${p.Aktif===false?'opacity:.5':''}" onclick="editMenu('${esc(p.SKU)}')"><div class=ph style="width:56px;height:56px;margin:0;font-size:24px">${p.Foto?`<img src="${esc(p.Foto)}">`:'\u2615'}</div><div style="flex:1"><b>${esc(p.Nama)}</b><br><small>${esc(p.Kategori)} \u00b7 ${rp(p.Harga)}${p.Aktif===false?' \u00b7 nonaktif':''}</small>${hppLine(p)}</div></button>`).join(''):'<div class=empty>Belum ada menu.</div>';
   return `<button class="btn ac" onclick="editMenu('')" style="margin-bottom:12px">+ Tambah Menu</button>${L}<h2 style="margin-top:20px">Pengaturan Order</h2>`+CFG.map(cfgBox).join('')}
-function vForm(){const f=S.sheet.f;return `<h2>${f.SKU?'Edit Menu':'Menu Baru'}</h2><div class=ph style="height:120px" onclick="document.getElementById('ff').click()">${f.Foto?`<img src="${esc(f.Foto)}">`:'<span style="font-size:15px;color:var(--mut)">Ketuk untuk pilih foto</span>'}</div><input id=ff type=file accept="image/*" hidden onchange="pilihFoto(this)"><input class=in placeholder="Nama menu" value="${esc(f.Nama)}" oninput="S.sheet.f.Nama=this.value"><input class=in list=kl placeholder="Kategori" value="${esc(f.Kategori)}" oninput="S.sheet.f.Kategori=this.value"><datalist id=kl>${kats().map(k=>`<option value="${esc(k)}">`).join('')}</datalist><input class=in type=number inputmode=numeric placeholder="Harga (Rp)" value="${esc(f.Harga)}" oninput="S.sheet.f.Harga=this.value"><label class=row style="border:0"><span>Tampil di kasir</span><input type=checkbox ${f.Aktif!==false?'checked':''} onchange="S.sheet.f.Aktif=this.checked" style="width:24px;height:24px"></label><button class="btn ac" onclick="simpanMenu()">Simpan Menu</button>`}
+function vForm(){const f=S.sheet.f;return `<h2>${f.SKU?'Edit Menu':'Menu Baru'}</h2><div class=ph style="height:120px" onclick="document.getElementById('ff').click()">${f.Foto?`<img src="${esc(f.Foto)}">`:'<span style="font-size:15px;color:var(--mut)">Ketuk untuk pilih foto</span>'}</div><input id=ff type=file accept="image/*" hidden onchange="pilihFoto(this)"><input class=in placeholder="Nama menu" value="${esc(f.Nama)}" oninput="S.sheet.f.Nama=this.value"><input class=in list=kl placeholder="Kategori" value="${esc(f.Kategori)}" oninput="S.sheet.f.Kategori=this.value"><datalist id=kl>${kats().map(k=>`<option value="${esc(k)}">`).join('')}</datalist><input class=in type=number inputmode=numeric placeholder="Harga (Rp)" value="${esc(f.Harga)}" oninput="S.sheet.f.Harga=this.value"><label class=row style="border:0"><span>Tampil di kasir</span><input type=checkbox ${f.Aktif!==false?'checked':''} onchange="S.sheet.f.Aktif=this.checked" style="width:24px;height:24px"></label>${f.SKU?`<button class="btn ghost" style="margin-bottom:8px" onclick="bukaResep('${esc(f.SKU)}')">Atur Resep & HPP</button>`:''}<button class="btn ac" onclick="simpanMenu()">Simpan Menu</button>`}
 
 S.bahan=[];S.qb='';
 const fmt=n=>Number(n||0).toLocaleString('id-ID',{maximumFractionDigits:2}),low=b=>Number(b.Stok)<=Number(b.Minimum),gb=k=>S.bahan.find(x=>String(x.SKU)===k);
@@ -143,6 +143,27 @@ function vRiw(){
   (R.sku?`<div class=box>Bahan: <b>${esc(R.sku)}</b> <button class=chip onclick="S.rs.sku='';loadRiw()">Semua bahan</button></div>`:'')+(tin?`<div class=lbl style="margin-bottom:8px">Total pembelian (Stok In): <b>${rp(tin)}</b></div>`:'')+
   (L.length?L.map(x=>{const au=String(x.alasan).indexOf('Audit')===0,d=-Number(x.qty),q=x.jenis==='in'?'+'+fmt(x.qty):au?(d>0?'+':'')+fmt(d):'-'+fmt(x.qty),c=x.jenis==='in'?'ok':au?'':'bad',ket=x.jenis==='in'?'Stok In \u00b7 '+rp(x.harga)+'/kemasan \u00b7 Total '+rp(x.total):au?esc(x.alasan):'Stok Out \u00b7 '+esc(x.alasan);
     return `<div class=box><div class=row style="border:0;padding:0"><b>${esc(x.nama)}</b><b class="${c}" style="font-size:20px">${q}</b></div><small style="color:var(--mut)">${esc(x.tgl)} ${esc(String(x.jam).slice(0,5))} \u00b7 ${ket} \u00b7 ${esc(x.kasir)}</small></div>`}).join(''):'<div class=empty>Belum ada riwayat di rentang ini.</div>')}
+
+S.hd=null;
+const ukList=()=>{const a=S.init.opsi.filter(o=>o.Jenis==='Ukuran').map(o=>o.Nama);return a.length?a:['']};
+const hargaJual=(p,u)=>Number(p.Harga)+Number((S.init.opsi.find(o=>o.Jenis==='Ukuran'&&o.Nama===u)||{})['Selisih Harga']||0);
+const hppOf=(k,u)=>S.hd&&S.hd.hpp[k]?S.hd.hpp[k][u]:null;
+async function refHd(){try{S.hd=await api('dataHpp')}catch(e){S.hd=null;toast(e.message,1)}}
+function hppLine(p){if(!S.hd)return '';return '<br><small>'+ukList().map(u=>{const h=hppOf(p.SKU,u),j=hargaJual(p,u);return (u?esc(u)+': ':'')+(h>0?'HPP '+rp(h)+' ('+Math.round((j-h)/j*100)+'%)':'HPP belum diatur')}).join(' | ')+'</small>'}
+async function bukaResep(k){if(!S.hd)await refHd();if(!S.hd)return;S.sheet={t:'resep',sku:k,u:'*'};render()}
+const lines=j=>(j==='resep'?S.hd.resep:S.hd.biaya).filter(r=>String(r['SKU Menu'])===String(S.sheet.sku)&&String(r.Ukuran)===S.sheet.u);
+async function addLine(j){const s=S.sheet;try{if(j==='resep')await api('simpanResep',{sku:s.sku,ukuran:s.u,skuBahan:$('#rb').value,takaran:$('#rt').value});else await api('simpanBiaya',{sku:s.sku,ukuran:s.u,nama:$('#bn').value,nominal:$('#bm').value});await refHd();toast('Tersimpan \u2713')}catch(e){toast(e.message,1)}render()}
+async function hapusLine(j,i){const s=S.sheet,r=lines(j)[i];try{if(j==='resep')await api('hapusResep',{sku:s.sku,ukuran:s.u,skuBahan:r['SKU Bahan']});else await api('hapusBiaya',{sku:s.sku,ukuran:s.u,nama:r['Nama Biaya']});await refHd()}catch(e){toast(e.message,1)}render()}
+function vResep(){
+  const s=S.sheet,p=S.all.find(x=>String(x.SKU)===String(s.sku)),hd=S.hd,U=ukList(),bn=k=>hd.bahan.find(b=>String(b.SKU)===String(k))||{};
+  const tabs=['*'].concat(U.filter(Boolean)),R=lines('resep'),B=lines('biaya');
+  const sm=U.map(u=>{const h=hppOf(s.sku,u),j=hargaJual(p,u),l=j-h;return `<div class=row><span>${esc(u||'Standar')}</span><span>HPP <b>${rp(h)}</b> \u00b7 Jual ${rp(j)} \u00b7 <b class="${l>=0?'ok':'bad'}">${j?Math.round(l/j*100):0}%</b></span></div>`}).join('');
+  return `<h2>Resep & HPP: ${esc(p.Nama)}</h2><div class=box><div class=lbl style="margin:0">Ringkasan (HPP \u00b7 harga jual \u00b7 margin)</div>${sm}</div><div class=lbl>Atur untuk</div><div class=chips>${tabs.map(u=>`<button class="chip ${s.u===u?'on':''}" onclick="S.sheet.u='${esc(u)}';render()">${u==='*'?'Semua ukuran':esc(u)}</button>`).join('')}</div>
+  <b>Bahan</b>${R.map((r,i)=>{const b=bn(r['SKU Bahan']),hg=Number(b['Harga Terakhir'])||0;return `<div class=row><div><b>${esc(b.Nama||r['SKU Bahan'])}</b><br><small>${fmt(r.Takaran)} ${esc(b.Satuan||'')} \u00b7 ${rp(Number(r.Takaran)*hg)}${hg>0?'':' \u00b7 belum ada Stok In'}</small></div><button class=chip onclick="hapusLine('resep',${i})">Hapus</button></div>`}).join('')||'<div class=lbl>Belum ada bahan.</div>'}
+  <select id=rb class=in style="margin-top:8px">${hd.bahan.map(b=>`<option value="${esc(b.SKU)}">${esc(b.Nama)} (${esc(b.Satuan)})</option>`).join('')}</select><input id=rt class=in type=number inputmode=decimal placeholder="Takaran (cup = 1)"><button class="btn ghost" onclick="addLine('resep')">+ Bahan</button>
+  <div style="margin-top:14px"><b>Biaya lain</b></div>${B.map((r,i)=>`<div class=row><span>${esc(r['Nama Biaya'])} \u00b7 ${rp(r.Nominal)}</span><button class=chip onclick="hapusLine('biaya',${i})">Hapus</button></div>`).join('')||'<div class=lbl>Belum ada biaya.</div>'}
+  <input id=bn class=in list=bnl style="margin-top:8px" placeholder="Nama biaya (mis. Operasional)"><datalist id=bnl><option value="Operasional"><option value="Biaya lainnya"></datalist><input id=bm class=in type=number inputmode=numeric placeholder="Nominal (Rp)"><button class="btn ghost" onclick="addLine('biaya')">+ Biaya</button>
+  <button class=btn style="margin-top:10px" onclick="S.sheet=null;loadMenu()">Selesai</button>`}
 function vKasir(){
   const q=S.q.toLowerCase(),ps=S.init.produk.filter(p=>String(p.Nama).toLowerCase().includes(q));
   return `<input class=in placeholder="\ud83d\udd0d Cari menu" value="${esc(S.q)}" onchange="S.q=this.value;render()">`+
@@ -162,18 +183,18 @@ function vSheet(){const s=S.sheet;if(!s)return'';let h='';
   ${S.bayar.map((b,x)=>`<div style="display:flex;gap:8px"><select class=in style="flex:1" onchange="S.bayar[${x}].metode=this.value">${S.init.metode.map(m=>`<option ${m===b.metode?'selected':''}>${esc(m)}</option>`).join('')}</select><input id=bj${x} class=in style="flex:1" type=number inputmode=numeric placeholder="Jumlah" value="${b.jumlah}" oninput="S.bayar[${x}].jumlah=this.value;sum()"></div>`).join('')}
   <div style="display:flex;gap:8px;margin-bottom:8px"><button class="btn ghost" onclick="S.bayar.push({metode:S.init.metode[0],jumlah:''});render()">+ Metode</button><button class="btn ghost" onclick="S.bayar=[{metode:S.bayar[0].metode,jumlah:total()}];render()">Uang pas</button></div><div id=sum></div><button id=go class="btn ac" onclick="simpan()">Simpan Transaksi</button>`}
  if(s.t==='sukses'){h=`<h2 class=ok>\u2713 Tersimpan</h2><div class=row><span>Total</span><b>${rp(S.last.total)}</b></div><div class=row><span>Kembalian</span><b>${rp(S.last.kembalian)}</b></div><div style="display:grid;gap:8px;margin-top:12px"><button class=btn onclick="cetak(S.last)">\ud83d\udda8 Cetak Struk</button><button class="btn ghost" onclick="cetak(S.last,1)">\ud83c\udff7 Cetak Label</button><button class="btn ac" onclick="S.sheet=null;render()">Order Baru</button></div>`}
- if(s.t==='produk')h=vForm();if(s.t==='bdet')h=vBdet();if(s.t==='stok')h=vStokForm();if(s.t==='bform')h=vBForm();
+ if(s.t==='produk')h=vForm();if(s.t==='resep')h=vResep();if(s.t==='bdet')h=vBdet();if(s.t==='stok')h=vStokForm();if(s.t==='bform')h=vBForm();
  return `<div class=ov onclick="if(event.target===this&&S.sheet.t!=='sukses'){S.sheet=null;render()}"><div class=sheet>${h}</div></div>`}
 function chg(x,d){S.cart[x].qty+=d;if(S.cart[x].qty<1)S.cart.splice(x,1);if(!S.cart.length)S.sheet=null;render()}
 
 function render(){
-  const A=$('#app');
+  const A=$('#app'),_sc=document.querySelector('.sheet'),_y=_sc?_sc.scrollTop:0;
   if(!S.token||!S.init){A.innerHTML=`<div class=login><div class=logo>\u2615</div><h2>Kopi Tlusor POS</h2><input id=u class=in placeholder=Username autocapitalize=off><input id=p class=in type=password placeholder=Password><button class="btn ac" onclick="doLogin()" ${S.busy?'disabled':''}>${S.busy?'Memuat\u2026':'Masuk'}</button></div>`;
     if(S.token&&!S.init&&!S.busy){S.busy=1;boot().then(()=>{S.busy=0;render()}).catch(()=>{S.busy=0;logout()})}return}
   const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu}[S.tab]();
   A.innerHTML=`<div class=wrap>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">\ud83d\uded2 ${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
   <div class=nav>${[['kasir','\ud83e\uddfe','Kasir'],['riwayat','\ud83d\udd58','Riwayat'],['kas','\ud83d\udcb5','Kas'],['stok','\ud83d\udce6','Stok']].concat(S.user&&S.user.role==='Owner'?[['menu','\u2615','Menu']]:[]).map(([k,i,n])=>`<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><b>${i}</b>${n}</button>`).join('')}<button onclick="if(confirm('Keluar?'))logout()"><b>\ud83d\udeaa</b>Keluar</button></div>${vSheet()}`;
-  if(S.sheet&&S.sheet.t==='bayar')sum();if(S.sheet&&S.sheet.t==='stok')prev();
+  if(S.sheet&&S.sheet.t==='bayar')sum();if(S.sheet&&S.sheet.t==='stok')prev();const _s2=document.querySelector('.sheet');if(_s2)_s2.scrollTop=_y;
 }
 render();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
