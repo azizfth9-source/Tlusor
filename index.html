@@ -20,7 +20,7 @@ h2{margin:6px 0 12px;font-size:20px}
 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .lbl{font-size:13px;color:var(--mut);margin-top:8px}
 .nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:rgba(255,255,255,.82);backdrop-filter:blur(14px);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom);z-index:5}
-.nav button{flex:1;padding:12px 4px;border:0;background:none;font:12px inherit;color:var(--mut)}.nav button b{display:block;font-size:20px}
+.nav button{flex:1;min-width:0;padding:10px 1px;border:0;background:none;font:12px inherit;color:var(--mut)}.nav button b{display:block;font-size:20px}
 .nav button.on{color:var(--ac);font-weight:700}
 .bar{position:fixed;left:12px;right:12px;bottom:calc(72px + env(safe-area-inset-bottom));z-index:6}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:10;display:flex;align-items:flex-end;justify-content:center}
@@ -83,7 +83,7 @@ async function loadTx(){try{S.tx=await api('listTx',{tanggal:S.tgl})}catch(e){to
 async function loadKas(){try{S.kas=await api('listKas',{})}catch(e){toast(e.message,1)}render()}
 async function voidTx(id){const pin=prompt('Masukkan PIN Owner untuk VOID '+id);if(!pin)return;try{await api('voidTx',{id,pin});toast('Transaksi di-VOID');loadTx()}catch(e){toast(e.message,1)}}
 async function simpanKas(){const j=+$('#kj').value,k=$('#kk').value;try{await api('addKas',{jenis:S.jenis,jumlah:j,keterangan:k});toast(S.jenis+' tersimpan \u2713');loadKas()}catch(e){toast(e.message,1)}}
-function go(t){S.tab=t;S.sheet=null;render();if(t==='riwayat')loadTx();if(t==='kas')loadKas();if(t==='menu')loadMenu();if(t==='stok')loadStok()}
+function go(t){S.tab=t;S.sheet=null;render();if(t==='riwayat')loadTx();if(t==='kas')loadKas();if(t==='menu')loadMenu();if(t==='stok')loadStok();if(t==='dash')loadDash()}
 
 
 const CFG=[['Opsi','Opsi order (Ukuran / Es / Gula)',['Jenis','Nama','Selisih Harga']],['KategoriOrder','Kategori order & markup harga',['Nama','Selisih Harga']],['MetodeBayar','Metode bayar',['Nama']]];
@@ -164,6 +164,23 @@ function vResep(){
   <div style="margin-top:14px"><b>Biaya lain</b></div>${B.map((r,i)=>`<div class=row><span>${esc(r['Nama Biaya'])} \u00b7 ${rp(r.Nominal)}</span><button class=chip onclick="hapusLine('biaya',${i})">Hapus</button></div>`).join('')||'<div class=lbl>Belum ada biaya.</div>'}
   <input id=bn class=in list=bnl style="margin-top:8px" placeholder="Nama biaya (mis. Operasional)"><datalist id=bnl><option value="Operasional"><option value="Biaya lainnya"></datalist><input id=bm class=in type=number inputmode=numeric placeholder="Nominal (Rp)"><button class="btn ghost" onclick="addLine('biaya')">+ Biaya</button>
   <button class=btn style="margin-top:10px" onclick="S.sheet=null;loadMenu()">Selesai</button>`}
+
+S.dash=null;S.dp={dari:today(),sampai:today(),k:1};
+function setDP(n){S.dp={dari:dago(n-1),sampai:today(),k:n};loadDash()}
+async function loadDash(){S.dash=null;render();try{S.dash=await api('dashboard',{dari:S.dp.dari,sampai:S.dp.sampai})}catch(e){toast(e.message,1)}render()}
+function vDash(){
+  const P=S.dp,D=S.dash;
+  const f=`<div class=chips>${[[1,'Hari ini'],[7,'7 Hari'],[30,'1 Bulan']].map(([n,l])=>`<button class="chip ${P.k===n?'on':''}" onclick="setDP(${n})">${l}</button>`).join('')}<button class="chip ${P.k==='x'?'on':''}" onclick="S.dp.k='x';render()">Kustom</button></div>${P.k==='x'?`<div style="display:flex;gap:8px"><input type=date class=in value="${P.dari}" onchange="S.dp.dari=this.value;loadDash()"><input type=date class=in value="${P.sampai}" onchange="S.dp.sampai=this.value;loadDash()"></div>`:''}`;
+  if(!D)return f+'<div class=empty>Memuat data...</div>';
+  const pc=(a,b)=>b?Math.round(a/b*100)+'%':'0%',cl=v=>v>=0?'ok':'bad';
+  const card=(t,v,s,c)=>`<div class=box style="margin:0"><div class=lbl style="margin:0">${t}</div><b class="${c||''}" style="font-size:19px">${rp(v)}</b>${s?`<br><small style="color:var(--mut)">${s}</small>`:''}</div>`;
+  const days=[];for(let t=new Date(P.dari+'T00:00:00Z'),e=new Date(P.sampai+'T00:00:00Z');t<=e&&days.length<62;t=new Date(t.getTime()+864e5))days.push(t.toISOString().slice(0,10));
+  const vals=days.map(x=>D.harian[x]||0),mx=Math.max(1,...vals);
+  const chart=days.length>1?`<div class=box><b>Grafik omzet</b><div style="display:flex;align-items:flex-end;gap:2px;height:120px;margin-top:8px">${vals.map((v,i)=>`<div title="${days[i]}: ${rp(v)}" style="flex:1;height:${v?Math.max(3,v/mx*100):1}%;background:${v?'var(--ac)':'var(--ln)'};border-radius:3px 3px 0 0"></div>`).join('')}</div><div style="display:flex;justify-content:space-between"><small>${days[0]}</small><small>Tertinggi ${rp(mx)}</small><small>${days[days.length-1]}</small></div></div>`:'';
+  const top=D.terlaris.length?D.terlaris.map((m,i)=>`<div class=row><span>${i+1}. ${esc(m.menu)}</span><span><b>${fmt(m.qty)}</b> terjual \u00b7 ${rp(m.omzet)}</span></div>`).join(''):'<div class=lbl>Belum ada penjualan.</div>';
+  const met=D.metode.length?D.metode.map(m=>`<div class=row><span>${esc(m.metode)}</span><b>${rp(m.jumlah)}</b></div>`).join(''):'<div class=lbl>Belum ada pembayaran.</div>';
+  const lw=D.menipis.length?D.menipis.map(b=>`<div class=row><span>${esc(b.nama)}</span><b class=bad>${fmt(b.stok)} / min ${fmt(b.min)}</b></div>`).join(''):'<div class=lbl>Semua stok aman \u2713</div>';
+  return f+`<div class=grid style="margin-bottom:10px">${card('Omzet penjualan',D.omzet,D.order+' order \u00b7 '+D.item+' item')}${card('HPP penjualan',D.hpp,'')}${card('Laba kotor',D.labaKotor,'Margin '+pc(D.labaKotor,D.omzet),cl(D.labaKotor))}${card('Laba bersih',D.labaBersih,'Margin '+pc(D.labaBersih,D.omzet)+' (setelah Kas Out)',cl(D.labaBersih))}${card('Pemasukan kas',D.omzet+D.kasIn,'Penjualan + Kas In')}${card('Pengeluaran kas',D.stokIn+D.kasOut,'Stok In '+rp(D.stokIn)+' + Kas Out '+rp(D.kasOut))}</div>${chart}<div class=box><b>Produk terlaris</b>${top}</div><div class=box><b>Per metode bayar</b>${met}</div><div class=box><b>Stok menipis</b>${lw}</div>`}
 function vKasir(){
   const q=S.q.toLowerCase(),ps=S.init.produk.filter(p=>String(p.Nama).toLowerCase().includes(q));
   return `<input class=in placeholder="\ud83d\udd0d Cari menu" value="${esc(S.q)}" onchange="S.q=this.value;render()">`+
@@ -191,9 +208,9 @@ function render(){
   const A=$('#app'),_sc=document.querySelector('.sheet'),_y=_sc?_sc.scrollTop:0;
   if(!S.token||!S.init){A.innerHTML=`<div class=login><div class=logo>\u2615</div><h2>Kopi Tlusor POS</h2><input id=u class=in placeholder=Username autocapitalize=off><input id=p class=in type=password placeholder=Password><button class="btn ac" onclick="doLogin()" ${S.busy?'disabled':''}>${S.busy?'Memuat\u2026':'Masuk'}</button></div>`;
     if(S.token&&!S.init&&!S.busy){S.busy=1;boot().then(()=>{S.busy=0;render()}).catch(()=>{S.busy=0;logout()})}return}
-  const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu}[S.tab]();
+  const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu,dash:vDash}[S.tab]();
   A.innerHTML=`<div class=wrap>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">\ud83d\uded2 ${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
-  <div class=nav>${[['kasir','\ud83e\uddfe','Kasir'],['riwayat','\ud83d\udd58','Riwayat'],['kas','\ud83d\udcb5','Kas'],['stok','\ud83d\udce6','Stok']].concat(S.user&&S.user.role==='Owner'?[['menu','\u2615','Menu']]:[]).map(([k,i,n])=>`<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><b>${i}</b>${n}</button>`).join('')}<button onclick="if(confirm('Keluar?'))logout()"><b>\ud83d\udeaa</b>Keluar</button></div>${vSheet()}`;
+  <div class=nav>${[['kasir','\ud83e\uddfe','Kasir'],['riwayat','\ud83d\udd58','Riwayat'],['kas','\ud83d\udcb5','Kas'],['stok','\ud83d\udce6','Stok']].concat(S.user&&S.user.role==='Owner'?[['menu','\u2615','Menu'],['dash','\ud83d\udcca','Dasbor']]:[]).map(([k,i,n])=>`<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><b>${i}</b>${n}</button>`).join('')}<button onclick="if(confirm('Keluar?'))logout()"><b>\ud83d\udeaa</b>Keluar</button></div>${vSheet()}`;
   if(S.sheet&&S.sheet.t==='bayar')sum();if(S.sheet&&S.sheet.t==='stok')prev();const _s2=document.querySelector('.sheet');if(_s2)_s2.scrollTop=_y;
 }
 render();
