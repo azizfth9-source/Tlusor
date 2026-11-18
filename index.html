@@ -47,7 +47,7 @@ async function api(action,data){
   const j=await r.json(); if(!j.ok){ if(/Sesi habis/.test(j.error)) logout(); throw new Error(j.error);} return j.data;
 }
 function logout(){S.token=null;S.user=null;keep();render()}
-async function doLogin(){S.busy=1;render();try{const d=await api('login',{username:$('#u').value,password:$('#p').value});S.token=d.token;S.user=d.user;keep();await boot();}catch(e){toast(e.message,1)}S.busy=0;render()}
+async function doLogin(){const un=$('#u').value,pw=$('#p').value;S.busy=1;render();try{const d=await api('login',{username:un,password:pw});S.token=d.token;S.user=d.user;keep();await boot();}catch(e){toast(e.message,1)}S.busy=0;render()}
 async function boot(){S.init=await api('init');S.kat=S.init.kategori[0]?.Nama;}
 const opsi=j=>S.init.opsi.filter(o=>o.Jenis===j);
 const katSel=()=>Number((S.init.kategori.find(k=>k.Nama===S.kat)||{})['Selisih Harga']||0);
