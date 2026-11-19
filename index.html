@@ -61,13 +61,16 @@ const today=()=>new Date(Date.now()+7*36e5).toISOString().slice(0,10);
 let S={tab:'kasir',cart:[],bayar:[],sheet:null,q:'',tgl:today(),tx:[],kas:{masuk:[],keluar:[]},jenis:'Kas In',...JSON.parse(localStorage.getItem('s')||'{}')};
 const keep=()=>localStorage.setItem('s',JSON.stringify({token:S.token,user:S.user}));
 function toast(m,bad){const t=document.createElement('div');t.className='toast'+(bad?' bad':'');t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
-async function api(action,data){
-  const r=await fetch(API,{method:'POST',body:JSON.stringify({action,token:S.token,data})});
-  const j=await r.json(); if(!j.ok){ if(/Sesi habis/.test(j.error)) logout(); throw new Error(j.error);} return j.data;
+async function api(action,data,opt){
+  const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),60000);let j;
+  try{const r=await fetch(API,{method:'POST',body:JSON.stringify({action,token:S.token,data}),signal:ctl.signal});j=await r.json()}
+  catch(e){clearTimeout(tm);const x=new Error('Tidak ada koneksi ke server');x.offline=true;throw x}
+  clearTimeout(tm);
+  if(!j.ok){if(/Sesi habis/.test(j.error))logout();throw new Error(j.error)}return j.data;
 }
 function logout(){S.token=null;S.user=null;keep();render()}
 async function doLogin(){const un=$('#u').value,pw=$('#p').value;S.busy=1;render();try{const d=await api('login',{username:un,password:pw});S.token=d.token;S.user=d.user;keep();await boot();}catch(e){toast(e.message,1)}S.busy=0;render()}
-async function boot(){S.init=await api('init');S.kat=S.init.kategori[0]?.Nama;pollVp();loadCust();loadProfil()}
+async function boot(){await initLoad();S.kat=S.init.kategori[0]?.Nama;pollVp();loadCust();loadProfil();sinkron()}
 const opsi=j=>S.init.opsi.filter(o=>o.Jenis===j);
 const katSel=()=>Number((S.init.kategori.find(k=>k.Nama===S.kat)||{})['Selisih Harga']||0);
 const total=()=>S.cart.reduce((a,i)=>a+(i.base+katSel())*i.qty,0);
@@ -89,9 +92,14 @@ function openBayar(){S.bayar=[{metode:S.init.metode[0],jumlah:''}];S.cat='';S.sh
 function sum(){const t=total(),p=paid();$('#sum').innerHTML=`<div class=row><span>Total</span><span class=tot>${rp(t)}</span></div><div class=row><span>Dibayar</span><b>${rp(p)}</b></div><div class=row><span>${p>=t?'Kembalian':'Kurang'}</span><b class="${p>=t?'ok':'bad'}">${rp(Math.abs(p-t))}</b></div>`;$('#go').disabled=p<t||S.busy}
 async function simpan(){
   if(S.busy)return;S.busy=1;$('#go').disabled=true;
-  try{const r=await api('saveOrderP',{items:S.cart,kategori:S.kat,catatan:S.cat,pelanggan:S.pel?S.pel.ID:'',poin:S.pel?(S.poinPakai||0):0,bayar:S.bayar.map(b=>({metode:b.metode,jumlah:+b.jumlah||0}))});
+  const P={cid:Date.now().toString(36)+Math.random().toString(36).slice(2,8),waktu:new Date().toISOString(),items:S.cart,kategori:S.kat,catatan:S.cat,pelanggan:S.pel?S.pel.ID:'',poin:S.pel?(S.poinPakai||0):0,bayar:S.bayar.map(b=>({metode:b.metode,jumlah:+b.jumlah||0}))};
+  const loc=localReceipt(P);
+  try{const r=await api('saveOrderQ',P);
     S.last=r;S.cart=[];S.bayar=[];S.pel=null;S.poinPakai=0;loadCust();S.sheet={t:'sukses'};toast('Transaksi tersimpan \u2713');
-  }catch(e){toast(e.message,1)}S.busy=0;render()
+  }catch(e){
+    if(e.offline){qSet(qGet().concat([{cid:P.cid,P,u:S.user.username,nama:S.user.nama,ts:Date.now(),total:loc.total,ket:loc.items.map(i=>i.qty+'x '+i.menu).join(', ')}]));S.last=loc;S.cart=[];S.bayar=[];S.pel=null;S.poinPakai=0;S.sheet={t:'sukses'};toast('Offline: transaksi disimpan di HP')}
+    else toast(e.message,1)}
+  S.busy=0;render()
 }
 function cetak(r,label){
   const w=window.open('','_blank');if(!w)return toast('Pop-up diblokir',1);
@@ -206,9 +214,9 @@ const SV={cart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const own=()=>S.user&&S.user.role==='Owner';
 function vNav(){const n=own()?S.vp.length:0;
   return `<div class=nav><button class=nl onclick="S.drawer=!S.drawer;render()" aria-label="Menu"><img class=lg src="icon-192.png" alt="" onerror="this.outerHTML='<b>Menu</b>'">${n?`<i class=dot>${n}</i>`:''}<small>${esc(S.user.nama)} \u00b7 ${esc(S.user.role)}</small></button><button class="nb c" onclick="go('kasir')" aria-label="Kasir">${SV.cart}</button><button class="nb p" onclick="if(confirm('Keluar dari akun?'))logout()" aria-label="Keluar">${SV.pw}</button></div>`}
-function vDrawer(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan'],['akt','Aktivitas & Closing'],['pelanggan','Pelanggan'],['pengaturan','Pengaturan']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['laporan','Laporan Akuntansi'],['void','Pengajuan VOID']]:[]);
+function vDrawer(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan'],['akt','Aktivitas & Closing'],['pelanggan','Pelanggan'],['pengaturan','Pengaturan'],['antrean','Antrean Offline']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['laporan','Laporan Akuntansi'],['void','Pengajuan VOID']]:[]);
   return `<div class=drawer onclick="if(event.target===this){S.drawer=false;render()}"><div class=dp>${L.map(([k,n])=>`<button onclick="go('${k}')">${n}${k==='void'&&S.vp.length?`<i class=dot>${S.vp.length}</i>`:''}</button>`).join('')}</div></div>`}
-function vMS(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan'],['akt','Aktivitas & Closing'],['pelanggan','Pelanggan'],['pengaturan','Pengaturan']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['laporan','Laporan Akuntansi'],['void','Pengajuan VOID']]:[]);
+function vMS(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan'],['akt','Aktivitas & Closing'],['pelanggan','Pelanggan'],['pengaturan','Pengaturan'],['antrean','Antrean Offline']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['laporan','Laporan Akuntansi'],['void','Pengajuan VOID']]:[]);
   return `<h2>Menu</h2><div class=lbl style="margin:-6px 0 10px">${esc(S.user.nama)} \u00b7 ${esc(S.user.role)}</div><div style="display:grid;gap:8px">${L.map(([k,n])=>`<button class=mi onclick="go('${k}')">${n}${k==='void'&&S.vp.length?`<i class=dot style="top:14px;right:14px">${S.vp.length}</i>`:''}</button>`).join('')}</div>`}
 async function pollVp(force){try{const n=S.vp.length;S.vp=await api('listVoid',{});if(own()&&S.vp.length>n&&!force)toast('Pengajuan VOID baru dari staf');if(force||S.vp.length!==n)render()}catch(e){}}
 setInterval(()=>{if(S.token&&S.init&&!S.busy&&!S.sheet)pollVp()},30000);
@@ -269,7 +277,7 @@ function vLaporan(){const P=S.lp,D=S.lap;
 
 S.cust=[];S.cfg={perRp:10000,nilai:500};S.pel=null;S.poinPakai=0;S.qp='';
 const poinVal=()=>S.pel?(S.poinPakai||0)*S.cfg.nilai:0;
-async function loadCust(){try{const d=await api('listPelanggan',{});S.cust=d.pelanggan;S.cfg=d.cfg;if(S.pel){const p=S.cust.find(x=>x.ID===S.pel.ID);if(p)S.pel=p}}catch(e){}if(S.tab==='pelanggan')render()}
+async function loadCust(){try{const d=await api('listPelanggan',{});S.cust=d.pelanggan;S.cfg=d.cfg;try{localStorage.setItem('cust',JSON.stringify(d))}catch(_){};if(S.pel){const p=S.cust.find(x=>x.ID===S.pel.ID);if(p)S.pel=p}}catch(e){try{const c=JSON.parse(localStorage.getItem('cust'));if(c&&!S.cust.length){S.cust=c.pelanggan;S.cfg=c.cfg}}catch(_){}}if(S.tab==='pelanggan')render()}
 function vPelBox(){
   if(!S.pel)return `<button class="btn ghost" style="margin-bottom:8px;padding:12px" onclick="S.sheet={t:'pilihpel',q:''};render()">Pilih pelanggan (opsional)</button>`;
   const mx=Math.min(S.pel.Poin||0,Math.floor(total()/S.cfg.nilai));
@@ -304,6 +312,24 @@ function vSet(){
   const pr=`<div class=box><b>Profil toko</b><input id=pf0 class=in style="margin-top:8px" placeholder="Nama toko" value="${esc(S.profil.nama)}"><input id=pf1 class=in placeholder="Alamat (tampil di struk)" value="${esc(S.profil.alamat)}"><input id=pf2 class=in placeholder="Footer struk (mis. Terima kasih)" value="${esc(S.profil.footer)}"><button class="btn ghost" onclick="simpanProfil()">Simpan Profil</button></div>`;
   const us=`<div class=box><b>Pengguna</b>${S.users.map((x,i)=>`<div class=row onclick="editUser(${i})" style="cursor:pointer"><div><b>${esc(x.nama)}</b><br><small>${esc(x.username)} \u00b7 ${esc(x.role)}</small></div><b class="${x.aktif?'ok':'bad'}">${x.aktif?'Aktif':'Nonaktif'}</b></div>`).join('')}<button class="btn ac" style="margin-top:10px" onclick="S.sheet={t:'uform',baru:1,f:{username:'',nama:'',role:'Kasir',aktif:true,password:''}};render()">+ Tambah Pengguna</button></div>`;
   return me+pr+us}
+
+const qGet=()=>{try{return JSON.parse(localStorage.getItem('q')||'[]')}catch(e){return[]}},qSet=a=>{try{localStorage.setItem('q',JSON.stringify(a))}catch(e){toast('Penyimpanan HP penuh',1)}};
+let syncing=false;
+async function initLoad(){try{S.init=await api('init');try{localStorage.setItem('init',JSON.stringify(S.init))}catch(_){}}catch(e){const c=localStorage.getItem('init');if(e.offline&&c)S.init=JSON.parse(c);else throw e}}
+function localReceipt(P){const ks=katSel(),items=P.items.map(i=>({menu:i.menu,ukuran:i.ukuran,es:i.es,gula:i.gula,qty:i.qty,harga:i.base+ks,sub:(i.base+ks)*i.qty})),total=items.reduce((a,i)=>a+i.sub,0),bayar=P.bayar.filter(b=>b.jumlah>0),paid=bayar.reduce((a,b)=>a+b.jumlah,0)+(P.poin?P.poin*S.cfg.nilai:0),w=new Date(Date.now()+7*36e5).toISOString();
+  return {id:'OFFLINE-'+P.cid.slice(-4).toUpperCase(),tanggal:w.slice(0,10),jam:w.slice(11,19),kasir:S.user.nama,toko:S.profil.nama||S.init.toko||'',kategori:P.kategori,items,total,bayar,kembalian:Math.max(0,paid-total),offline:true}}
+async function sinkron(manual){
+  if(syncing||!S.token||!S.user||!navigator.onLine)return;syncing=true;let ok=0;
+  try{for(const it of qGet()){if(it.u!==S.user.username)continue;if(it.err&&!manual)continue;
+    try{await api('saveOrderQ',it.P);qSet(qGet().filter(x=>x.cid!==it.cid));ok++}
+    catch(e){if(e.offline)break;const a=qGet(),x=a.find(y=>y.cid===it.cid);if(x){x.err=e.message;qSet(a)}}}}
+  finally{syncing=false}
+  if(ok)toast(ok+' transaksi offline terkirim \u2713');render()}
+function qBanner(){const n=qGet().length;let h='';if(!navigator.onLine)h+='<div class=box style="background:#fff3cd;border-color:#e6c200"><b>Mode offline</b><br><small>Transaksi tetap bisa dicatat dan dikirim otomatis saat sinyal kembali.</small></div>';if(n&&S.tab!=='antrean')h+=`<div class=box style="border-color:var(--ac);background:var(--acs)" onclick="go('antrean')"><b>${n} transaksi menunggu dikirim</b></div>`;return h}
+function hapusAntrean(i){if(!confirm('Hapus dari antrean? Transaksi ini TIDAK akan tersimpan ke spreadsheet.'))return;const a=qGet();a.splice(i,1);qSet(a);render()}
+function vAntrean(){const Q=qGet();return (Q.length?`<button class="btn ac" style="margin-bottom:10px" onclick="sinkron(1)">Kirim sekarang</button>`:'')+(Q.length?Q.map((x,i)=>`<div class=box><div class=row style="border:0;padding:0"><b>${esc(new Date(x.ts+7*36e5).toISOString().slice(0,16).replace('T',' '))}</b><b>${rp(x.total)}</b></div><small style="color:var(--mut)">${esc(x.ket)} \u00b7 akun ${esc(x.nama||x.u)}</small>${x.err?`<div class=lbl style="color:#c0242f;margin:4px 0 0">Gagal: ${esc(x.err)}</div>`:'<div class=lbl style="margin:4px 0 0">Menunggu dikirim</div>'}<button class="btn ghost" style="margin-top:8px;padding:10px" onclick="hapusAntrean(${i})">Hapus dari antrean</button></div>`).join(''):'<div class=empty>Tidak ada transaksi offline yang menunggu.</div>')}
+window.addEventListener('online',()=>{render();sinkron()});window.addEventListener('offline',()=>render());
+setInterval(()=>{if(S.token&&qGet().length&&navigator.onLine)sinkron()},20000);
 function vKasir(){
   const q=S.q.toLowerCase(),ps=S.init.produk.filter(p=>String(p.Nama).toLowerCase().includes(q));
   return `<input class=in placeholder="Cari menu" value="${esc(S.q)}" onchange="S.q=this.value;render()">`+
@@ -319,7 +345,7 @@ function vSheet(){const s=S.sheet;if(!s)return'';let h='';
   <input class=in style="margin-top:10px" placeholder="Catatan (opsional)" value="${esc(S.cat)}" oninput="S.cat=this.value">${vPelBox()}<div class=lbl>Metode bayar (bisa lebih dari satu)</div>
   ${S.bayar.map((b,x)=>`<div style="display:flex;gap:8px"><select class=in style="flex:1" onchange="S.bayar[${x}].metode=this.value">${S.init.metode.map(m=>`<option ${m===b.metode?'selected':''}>${esc(m)}</option>`).join('')}</select><input id=bj${x} class=in style="flex:1" type=number inputmode=numeric placeholder="Jumlah" value="${b.jumlah}" oninput="S.bayar[${x}].jumlah=this.value;sum()"></div>`).join('')}
   <div style="display:flex;gap:8px;margin-bottom:8px"><button class="btn ghost" onclick="S.bayar.push({metode:S.init.metode[0],jumlah:''});render()">+ Metode</button><button class="btn ghost" onclick="S.bayar=[{metode:S.bayar[0].metode,jumlah:Math.max(0,total()-poinVal())}];render()">Uang pas</button></div><div id=sum></div><button id=go class="btn ac" onclick="simpan()">Simpan Transaksi</button>`}
- if(s.t==='sukses'){h=`<h2 class=ok>\u2713 Tersimpan</h2><div class=row><span>Total</span><b>${rp(S.last.total)}</b></div><div class=row><span>Kembalian</span><b>${rp(S.last.kembalian)}</b></div>${S.last.pelanggan?`<div class=row><span>Poin ${esc(S.last.pelanggan)}</span><b>+${S.last.poinDapat}${S.last.poinTukar?' / -'+S.last.poinTukar:''} \u00b7 saldo ${S.last.saldo}</b></div>`:''}<div style="display:grid;gap:8px;margin-top:12px"><button class=btn onclick="cetak(S.last)">Cetak Struk</button><button class="btn ghost" onclick="cetak(S.last,1)">Cetak Label</button><button class="btn ac" onclick="S.sheet=null;render()">Order Baru</button></div>`}
+ if(s.t==='sukses'){h=`<h2 class=ok>\u2713 Tersimpan${S.last.offline?' (offline)':''}</h2>${S.last.offline?'<div class=lbl>Belum terkirim ke server. Akan dikirim otomatis saat sinyal kembali.</div>':''}<div class=row><span>Total</span><b>${rp(S.last.total)}</b></div><div class=row><span>Kembalian</span><b>${rp(S.last.kembalian)}</b></div>${S.last.pelanggan?`<div class=row><span>Poin ${esc(S.last.pelanggan)}</span><b>+${S.last.poinDapat}${S.last.poinTukar?' / -'+S.last.poinTukar:''} \u00b7 saldo ${S.last.saldo}</b></div>`:''}<div style="display:grid;gap:8px;margin-top:12px"><button class=btn onclick="cetak(S.last)">Cetak Struk</button><button class="btn ghost" onclick="cetak(S.last,1)">Cetak Label</button><button class="btn ac" onclick="S.sheet=null;render()">Order Baru</button></div>`}
  if(s.t==='produk')h=vForm();if(s.t==='lap')h=vLap();if(s.t==='uform')h=vUform();if(s.t==='pilihpel')h=vPilih();if(s.t==='pform')h=vPform();if(s.t==='pdet')h=vPdet();if(s.t==='kpoin')h=vKpoin();if(s.t==='fitur')h=vMS();if(s.t==='kedit')h=vKE();if(s.t==='resep')h=vResep();if(s.t==='bdet')h=vBdet();if(s.t==='stok')h=vStokForm();if(s.t==='bform')h=vBForm();
  return `<div class=ov onclick="if(event.target===this&&S.sheet.t!=='sukses'){S.sheet=null;render()}"><div class=sheet>${h}</div></div>`}
 function chg(x,d){S.cart[x].qty+=d;if(S.cart[x].qty<1)S.cart.splice(x,1);if(!S.cart.length)S.sheet=null;render()}
@@ -328,8 +354,8 @@ function render(){
   const A=$('#app'),_sc=document.querySelector('.sheet'),_y=_sc?_sc.scrollTop:0;
   if(!S.token||!S.init){A.innerHTML=`<div class=login><div class=logo>\u2615</div><h2>Kopi Tlusor POS</h2><input id=u class=in placeholder=Username autocapitalize=off><input id=p class=in type=password placeholder=Password><button class="btn ac" onclick="doLogin()" ${S.busy?'disabled':''}>${S.busy?'Memuat\u2026':'Masuk'}</button></div>`;
     if(S.token&&!S.init&&!S.busy){S.busy=1;boot().then(()=>{S.busy=0;render()}).catch(()=>{S.busy=0;logout()})}return}
-  const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu,dash:vDash,void:vVoid,akt:vAkt,laporan:vLaporan,pelanggan:vPelanggan,pengaturan:vSet}[S.tab]();
-  A.innerHTML=`<div class=wrap>${own()&&S.vp.length&&S.tab!=='void'?`<div class=box style="border-color:var(--ac);background:var(--acs)" onclick="go('void')"><b>${S.vp.length} pengajuan VOID menunggu konfirmasi</b></div>`:''}<h2>${({kasir:'Kasir',riwayat:'Riwayat Transaksi',kas:'Kas In / Kas Out',stok:'Stok Bahan',menu:'Menu & Resep',dash:'Dasbor',void:'Pengajuan VOID',akt:'Aktivitas & Closing',laporan:'Laporan Akuntansi',pelanggan:'Pelanggan',pengaturan:'Pengaturan'})[S.tab]||''}</h2>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
+  const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu,dash:vDash,void:vVoid,akt:vAkt,laporan:vLaporan,pelanggan:vPelanggan,pengaturan:vSet,antrean:vAntrean}[S.tab]();
+  A.innerHTML=`<div class=wrap>${qBanner()}${own()&&S.vp.length&&S.tab!=='void'?`<div class=box style="border-color:var(--ac);background:var(--acs)" onclick="go('void')"><b>${S.vp.length} pengajuan VOID menunggu konfirmasi</b></div>`:''}<h2>${({kasir:'Kasir',riwayat:'Riwayat Transaksi',kas:'Kas In / Kas Out',stok:'Stok Bahan',menu:'Menu & Resep',dash:'Dasbor',void:'Pengajuan VOID',akt:'Aktivitas & Closing',laporan:'Laporan Akuntansi',pelanggan:'Pelanggan',pengaturan:'Pengaturan',antrean:'Antrean Offline'})[S.tab]||''}</h2>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
   ${vNav()}${S.drawer?vDrawer():''}${vSheet()}`;
   if(S.sheet&&S.sheet.t==='bayar')sum();if(S.sheet&&S.sheet.t==='stok')prev();if(S.tab==='akt')selUpd();const _s2=document.querySelector('.sheet');if(_s2)_s2.scrollTop=_y;
 }
