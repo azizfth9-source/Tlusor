@@ -95,7 +95,7 @@ async function simpan(){
   const P={cid:Date.now().toString(36)+Math.random().toString(36).slice(2,8),waktu:new Date().toISOString(),items:S.cart,kategori:S.kat,catatan:S.cat,pelanggan:S.pel?S.pel.ID:'',poin:S.pel?(S.poinPakai||0):0,bayar:S.bayar.map(b=>({metode:b.metode,jumlah:+b.jumlah||0}))};
   const loc=localReceipt(P);
   try{const r=await api('saveOrderQ',P);
-    S.last=r;S.cart=[];S.bayar=[];S.pel=null;S.poinPakai=0;loadCust();S.sheet={t:'sukses'};toast('Transaksi tersimpan \u2713');
+    S.last=r;r.catatan=P.catatan;S.cart=[];S.bayar=[];S.pel=null;S.poinPakai=0;loadCust();S.sheet={t:'sukses'};toast('Transaksi tersimpan \u2713');
   }catch(e){
     if(e.offline){qSet(qGet().concat([{cid:P.cid,P,u:S.user.username,nama:S.user.nama,ts:Date.now(),total:loc.total,ket:loc.items.map(i=>i.qty+'x '+i.menu).join(', ')}]));S.last=loc;S.cart=[];S.bayar=[];S.pel=null;S.poinPakai=0;S.sheet={t:'sukses'};toast('Offline: transaksi disimpan di HP')}
     else toast(e.message,1)}
@@ -308,16 +308,16 @@ async function simpanUser(){const s=S.sheet,f=s.f;try{await api('saveUser',{baru
 function vUform(){const s=S.sheet,f=s.f;return `<h2>${s.baru?'Pengguna Baru':'Edit Pengguna'}</h2>${s.baru?`<input class=in placeholder="Username" autocapitalize=off value="${esc(f.username)}" oninput="S.sheet.f.username=this.value">`:`<div class=lbl>Username: <b>${esc(f.username)}</b></div>`}<input class=in placeholder="Nama (tampil di struk dan riwayat)" value="${esc(f.nama)}" oninput="S.sheet.f.nama=this.value"><input class=in placeholder="${s.baru?'Password (min. 6 karakter)':'Password baru (kosongkan jika tidak diganti)'}" oninput="S.sheet.f.password=this.value"><div class=lbl>Peran</div><div class=chips>${['Kasir','Owner'].map(r=>`<button class="chip ${f.role===r?'on':''}" onclick="S.sheet.f.role='${r}';render()">${r}</button>`).join('')}</div><label class=row style="border:0"><span>Akun aktif</span><input type=checkbox ${f.aktif?'checked':''} onchange="S.sheet.f.aktif=this.checked" style="width:24px;height:24px"></label><button class="btn ac" onclick="simpanUser()">Simpan</button>`}
 function vSet(){
   const me=`<div class=box><b>Akun saya</b><div class=lbl style="margin:4px 0 8px">${esc(S.user.nama)} \u00b7 ${esc(S.user.role)} \u00b7 ${esc(S.user.username)}</div><input id=pw0 class=in type=password placeholder="Password lama"><input id=pw1 class=in type=password placeholder="Password baru (min. 6 karakter)"><input id=pw2 class=in type=password placeholder="Ulangi password baru"><button class="btn ghost" onclick="gantiPw()">Ganti Password</button></div>`;
-  if(!own())return me;
+  if(!own())return me+vPrn();
   const pr=`<div class=box><b>Profil toko</b><input id=pf0 class=in style="margin-top:8px" placeholder="Nama toko" value="${esc(S.profil.nama)}"><input id=pf1 class=in placeholder="Alamat (tampil di struk)" value="${esc(S.profil.alamat)}"><input id=pf2 class=in placeholder="Footer struk (mis. Terima kasih)" value="${esc(S.profil.footer)}"><button class="btn ghost" onclick="simpanProfil()">Simpan Profil</button></div>`;
   const us=`<div class=box><b>Pengguna</b>${S.users.map((x,i)=>`<div class=row onclick="editUser(${i})" style="cursor:pointer"><div><b>${esc(x.nama)}</b><br><small>${esc(x.username)} \u00b7 ${esc(x.role)}</small></div><b class="${x.aktif?'ok':'bad'}">${x.aktif?'Aktif':'Nonaktif'}</b></div>`).join('')}<button class="btn ac" style="margin-top:10px" onclick="S.sheet={t:'uform',baru:1,f:{username:'',nama:'',role:'Kasir',aktif:true,password:''}};render()">+ Tambah Pengguna</button></div>`;
-  return me+pr+us}
+  return me+vPrn()+pr+us}
 
 const qGet=()=>{try{return JSON.parse(localStorage.getItem('q')||'[]')}catch(e){return[]}},qSet=a=>{try{localStorage.setItem('q',JSON.stringify(a))}catch(e){toast('Penyimpanan HP penuh',1)}};
 let syncing=false;
 async function initLoad(){try{S.init=await api('init');try{localStorage.setItem('init',JSON.stringify(S.init))}catch(_){}}catch(e){const c=localStorage.getItem('init');if(e.offline&&c)S.init=JSON.parse(c);else throw e}}
 function localReceipt(P){const ks=katSel(),items=P.items.map(i=>({menu:i.menu,ukuran:i.ukuran,es:i.es,gula:i.gula,qty:i.qty,harga:i.base+ks,sub:(i.base+ks)*i.qty})),total=items.reduce((a,i)=>a+i.sub,0),bayar=P.bayar.filter(b=>b.jumlah>0),paid=bayar.reduce((a,b)=>a+b.jumlah,0)+(P.poin?P.poin*S.cfg.nilai:0),w=new Date(Date.now()+7*36e5).toISOString();
-  return {id:'OFFLINE-'+P.cid.slice(-4).toUpperCase(),tanggal:w.slice(0,10),jam:w.slice(11,19),kasir:S.user.nama,toko:S.profil.nama||S.init.toko||'',kategori:P.kategori,items,total,bayar,kembalian:Math.max(0,paid-total),offline:true}}
+  return {id:'OFFLINE-'+P.cid.slice(-4).toUpperCase(),tanggal:w.slice(0,10),jam:w.slice(11,19),kasir:S.user.nama,toko:S.profil.nama||S.init.toko||'',kategori:P.kategori,catatan:P.catatan,items,total,bayar,kembalian:Math.max(0,paid-total),offline:true}}
 async function sinkron(manual){
   if(syncing||!S.token||!S.user||!navigator.onLine)return;syncing=true;let ok=0;
   try{for(const it of qGet()){if(it.u!==S.user.username)continue;if(it.err&&!manual)continue;
@@ -330,13 +330,52 @@ function hapusAntrean(i){if(!confirm('Hapus dari antrean? Transaksi ini TIDAK ak
 function vAntrean(){const Q=qGet();return (Q.length?`<button class="btn ac" style="margin-bottom:10px" onclick="sinkron(1)">Kirim sekarang</button>`:'')+(Q.length?Q.map((x,i)=>`<div class=box><div class=row style="border:0;padding:0"><b>${esc(new Date(x.ts+7*36e5).toISOString().slice(0,16).replace('T',' '))}</b><b>${rp(x.total)}</b></div><small style="color:var(--mut)">${esc(x.ket)} \u00b7 akun ${esc(x.nama||x.u)}</small>${x.err?`<div class=lbl style="color:#c0242f;margin:4px 0 0">Gagal: ${esc(x.err)}</div>`:'<div class=lbl style="margin:4px 0 0">Menunggu dikirim</div>'}<button class="btn ghost" style="margin-top:8px;padding:10px" onclick="hapusAntrean(${i})">Hapus dari antrean</button></div>`).join(''):'<div class=empty>Tidak ada transaksi offline yang menunggu.</div>')}
 window.addEventListener('online',()=>{render();sinkron()});window.addEventListener('offline',()=>render());
 setInterval(()=>{if(S.token&&qGet().length&&navigator.onLine)sinkron()},20000);
+const PW=32,nf=n=>Number(n||0).toLocaleString('id-ID');
+const asc=s=>String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\x20-\x7E]/g,'?');
+function wrap(s,w){const out=[];let cur='';String(s||'').split(/\s+/).forEach(x=>{if(!x)return;while(x.length>w){if(cur){out.push(cur);cur=''}out.push(x.slice(0,w));x=x.slice(w)}if((cur+' '+x).trim().length>w){out.push(cur);cur=x}else cur=(cur+' '+x).trim()});if(cur)out.push(cur);return out}
+function EP(){const b=[],a={
+  txt(s){for(const c of asc(s))b.push(c.charCodeAt(0));return a},
+  ln(s){a.txt(s||'');b.push(10);return a},
+  al(n){b.push(0x1b,0x61,n);return a},bold(o){b.push(0x1b,0x45,o?1:0);return a},size(n){b.push(0x1d,0x21,n);return a},
+  feed(n){b.push(0x1b,0x64,n);return a},init(){b.push(0x1b,0x40);return a},
+  lr(l,r){l=asc(l);r=asc(r);return a.ln(l+' '.repeat(Math.max(1,PW-l.length-r.length))+r)},
+  line(){return a.ln('-'.repeat(PW))},
+  b64(){let s='';for(let i=0;i<b.length;i+=8000)s+=String.fromCharCode.apply(null,b.slice(i,i+8000));return btoa(s)}};return a}
+const opsiTxt=i=>[i.ukuran,i.es,i.gula].filter(Boolean).join(' / ');
+function bStruk(e,r){
+  e.al(1).bold(1).size(1);wrap(r.toko||S.init.toko||'',PW).forEach(s=>e.ln(s));e.size(0).bold(0);
+  if(S.profil.alamat)wrap(S.profil.alamat,PW).forEach(s=>e.ln(s));
+  e.al(0).line().ln('Tgl   : '+r.tanggal+' '+String(r.jam).slice(0,5)).ln('No    : '+r.id).ln('Kasir : '+r.kasir).ln('Jenis : '+r.kategori).line();
+  r.items.forEach(i=>{wrap(i.menu,PW).forEach(s=>e.ln(s));if(opsiTxt(i))e.ln('  '+opsiTxt(i));e.lr('  '+i.qty+' x '+nf(i.harga),nf(i.sub))});
+  e.line().bold(1).lr('TOTAL',rp(r.total)).bold(0);
+  (r.bayar||[]).forEach(b=>e.lr(b.metode,rp(b.jumlah)));
+  e.lr('Kembali',rp(r.kembalian));
+  if(r.pelanggan)e.line().ln('Pelanggan: '+r.pelanggan).ln('Poin +'+(r.poinDapat||0)+(r.poinTukar?' / -'+r.poinTukar:'')+'  Saldo '+(r.saldo||0));
+  e.line().al(1);wrap(S.profil.footer||'Terima kasih',PW).forEach(s=>e.ln(s));e.al(0).feed(3)}
+function bLabel(e,r){const tot=r.items.reduce((a,i)=>a+Number(i.qty),0);let n=0;
+  r.items.forEach(i=>{for(let k=0;k<i.qty;k++){n++;e.al(1).bold(1).size(1);wrap(i.menu,PW).forEach(s=>e.ln(s));e.size(0).bold(0);
+    if(opsiTxt(i))e.ln(opsiTxt(i));if(r.catatan)wrap('Cat: '+r.catatan,PW).forEach(s=>e.ln(s));
+    e.ln(r.id+'  '+String(r.jam).slice(0,5)).ln(n+'/'+tot+'  '+r.kategori).ln('- - - - - - - - - - - - - - - -').feed(1)}});e.al(0)}
+function bProd(e,r){
+  e.al(1).bold(1).size(1).ln('PRODUKSI').size(0).bold(0).ln(r.id+'  '+String(r.jam).slice(0,5)).ln(r.kategori).al(0).line();
+  r.items.forEach(i=>{e.bold(1).size(1);wrap(i.qty+'x '+i.menu,PW).forEach(s=>e.ln(s));e.size(0).bold(0);if(opsiTxt(i))e.ln('  '+opsiTxt(i))});
+  if(r.catatan){e.line();wrap('Catatan: '+r.catatan,PW).forEach(s=>e.ln(s))}e.line().feed(3)}
+
+const prnCfg=()=>{try{return Object.assign({mode:'rawbt'},JSON.parse(localStorage.getItem('prn')||'{}'))}catch(e){return{mode:'rawbt'}}};
+function setPrn(k){try{localStorage.setItem('prn',JSON.stringify({mode:k}))}catch(e){}render()}
+function kirimRB(e){location.href='intent:base64,'+e.b64()+'#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;'}
+function prn(j,r){if(prnCfg().mode==='browser')return cetak(r,j==='struk'?0:1);const e=EP().init();if(j==='struk')bStruk(e,r);else if(j==='label')bLabel(e,r);else bProd(e,r);kirimRB(e)}
+function cetakSemua(r){if(prnCfg().mode==='browser')return cetak(r);const e=EP().init();bStruk(e,r);bLabel(e,r);bProd(e,r);kirimRB(e)}
+function cetakTes(){if(prnCfg().mode==='browser')return cetak({toko:'TES PRINTER',tanggal:'',jam:'',id:'TES',kasir:'',kategori:'',items:[],total:0,bayar:[],kembalian:0});kirimRB(EP().init().al(1).bold(1).ln('TES PRINTER').bold(0).ln('Kopi Tlusor POS').al(0).ln('12345678901234567890123456789012').lr('Rp 15.000','Rp 5.000').feed(3))}
+function ulang(ix){const o=S.tx[ix],pd=o.bayar.reduce((a,b)=>a+Number(b.jumlah),0);prn('struk',{id:o.id,tanggal:S.tgl,jam:o.jam,kasir:o.kasir,toko:S.profil.nama||S.init.toko,kategori:o.kategori,items:o.items.map(i=>({menu:i.menu,ukuran:i.ukuran,es:i.es,gula:i.gula,qty:i.qty,harga:i.qty?i.sub/i.qty:0,sub:i.sub})),total:o.total,bayar:o.bayar.map(b=>({metode:b.metode,jumlah:b.jumlah})),kembalian:Math.max(0,pd-o.total)})}
+function vPrn(){const p=prnCfg();return `<div class=box><b>Printer (perangkat ini)</b><div class=lbl style="margin:6px 0 4px">Cara cetak</div><div class=chips>${[['rawbt','RawBT (Bluetooth)'],['browser','Dialog browser']].map(([k,n])=>`<button class="chip ${p.mode===k?'on':''}" onclick="setPrn('${k}')">${n}</button>`).join('')}</div><button class="btn ghost" onclick="cetakTes()">Cetak Tes</button><div class=lbl style="margin-top:8px">RPP02N: pasang aplikasi RawBT (Play Store), pasangkan printer lewat Bluetooth HP, pilih printer itu di RawBT (kertas 58mm, ESC/POS), lalu tekan Cetak Tes.</div></div>`}
 function vKasir(){
   const q=S.q.toLowerCase(),ps=S.init.produk.filter(p=>String(p.Nama).toLowerCase().includes(q));
   return `<input class=in placeholder="Cari menu" value="${esc(S.q)}" onchange="S.q=this.value;render()">`+
   (ps.length?`<div class=grid>${ps.map(p=>`<button class=card onclick="pick('${esc(p.SKU)}')"><div class=ph>${p.Foto?`<img src="${esc(p.Foto)}">`:'\u2615'}</div><b>${esc(p.Nama)}</b><small>${rp(p.Harga)}</small></button>`).join('')}</div>`:'<div class=empty>Belum ada menu.<br>Tambahkan di sheet Produk.</div>');
 }
 function vRiwayat(){return `<input type=date class=in value="${S.tgl}" onchange="S.tgl=this.value;loadTx()">`+
- (S.tx.length?S.tx.map(o=>`<div class=box><div class=row style="border:0"><b class="${o.status==='VOID'?'void':''}">${esc(o.id)}</b><span class=tot style="font-size:18px">${rp(o.total)}</span></div><small style="color:var(--mut)">${esc(o.jam)} \u00b7 ${esc(o.kasir)} \u00b7 ${esc(o.kategori)} \u00b7 ${o.bayar.map(b=>esc(b.metode)).join('+')}</small>${o.items.map(i=>`<div>${i.qty}\u00d7 ${esc(i.menu)} <small>${esc([i.ukuran,i.es,i.gula].filter(Boolean).join('/'))}</small></div>`).join('')}${o.status==='VOID'?'<b class=bad>VOID</b>':`${vBtn(o.id)}`}</div>`).join(''):'<div class=empty>Belum ada transaksi di tanggal ini.</div>')}
+ (S.tx.length?S.tx.map((o,ix)=>`<div class=box><div class=row style="border:0"><b class="${o.status==='VOID'?'void':''}">${esc(o.id)}</b><span class=tot style="font-size:18px">${rp(o.total)}</span></div><small style="color:var(--mut)">${esc(o.jam)} \u00b7 ${esc(o.kasir)} \u00b7 ${esc(o.kategori)} \u00b7 ${o.bayar.map(b=>esc(b.metode)).join('+')}</small>${o.items.map(i=>`<div>${i.qty}\u00d7 ${esc(i.menu)} <small>${esc([i.ukuran,i.es,i.gula].filter(Boolean).join('/'))}</small></div>`).join('')}${o.status==='VOID'?'<b class=bad>VOID</b>':`<button class="btn ghost" style="margin-top:8px;padding:10px" onclick="ulang(${ix})">Cetak Ulang Struk</button>${vBtn(o.id)}`}</div>`).join(''):'<div class=empty>Belum ada transaksi di tanggal ini.</div>')}
 function vSheet(){const s=S.sheet;if(!s)return'';let h='';
  if(s.t==='opsi'){const g=(j,k)=>opsi(j).length?`<div class=lbl>${j}</div><div class=chips>${opsi(j).map(o=>`<button class="chip ${s[k]===o.Nama?'on':''}" onclick="S.sheet.${k}='${esc(o.Nama)}';render()">${esc(o.Nama)}${o['Selisih Harga']>0?' +'+Number(o['Selisih Harga']).toLocaleString('id-ID'):''}</button>`).join('')}</div>`:'';
   h=`<h2>${esc(s.p.Nama)}</h2>${g('Ukuran','ukuran')}${g('Es','es')}${g('Gula','gula')}<div class=row style="border:0"><span>Jumlah</span><div class=qty><button onclick="S.sheet.qty=Math.max(1,S.sheet.qty-1);render()">\u2212</button><b>${s.qty}</b><button onclick="S.sheet.qty++;render()">+</button></div></div><button class="btn ac" onclick="addCart()">Tambah \u00b7 ${rp((Number(s.p.Harga)+ukSel(s.ukuran))*s.qty)}</button>`}
@@ -345,7 +384,7 @@ function vSheet(){const s=S.sheet;if(!s)return'';let h='';
   <input class=in style="margin-top:10px" placeholder="Catatan (opsional)" value="${esc(S.cat)}" oninput="S.cat=this.value">${vPelBox()}<div class=lbl>Metode bayar (bisa lebih dari satu)</div>
   ${S.bayar.map((b,x)=>`<div style="display:flex;gap:8px"><select class=in style="flex:1" onchange="S.bayar[${x}].metode=this.value">${S.init.metode.map(m=>`<option ${m===b.metode?'selected':''}>${esc(m)}</option>`).join('')}</select><input id=bj${x} class=in style="flex:1" type=number inputmode=numeric placeholder="Jumlah" value="${b.jumlah}" oninput="S.bayar[${x}].jumlah=this.value;sum()"></div>`).join('')}
   <div style="display:flex;gap:8px;margin-bottom:8px"><button class="btn ghost" onclick="S.bayar.push({metode:S.init.metode[0],jumlah:''});render()">+ Metode</button><button class="btn ghost" onclick="S.bayar=[{metode:S.bayar[0].metode,jumlah:Math.max(0,total()-poinVal())}];render()">Uang pas</button></div><div id=sum></div><button id=go class="btn ac" onclick="simpan()">Simpan Transaksi</button>`}
- if(s.t==='sukses'){h=`<h2 class=ok>\u2713 Tersimpan${S.last.offline?' (offline)':''}</h2>${S.last.offline?'<div class=lbl>Belum terkirim ke server. Akan dikirim otomatis saat sinyal kembali.</div>':''}<div class=row><span>Total</span><b>${rp(S.last.total)}</b></div><div class=row><span>Kembalian</span><b>${rp(S.last.kembalian)}</b></div>${S.last.pelanggan?`<div class=row><span>Poin ${esc(S.last.pelanggan)}</span><b>+${S.last.poinDapat}${S.last.poinTukar?' / -'+S.last.poinTukar:''} \u00b7 saldo ${S.last.saldo}</b></div>`:''}<div style="display:grid;gap:8px;margin-top:12px"><button class=btn onclick="cetak(S.last)">Cetak Struk</button><button class="btn ghost" onclick="cetak(S.last,1)">Cetak Label</button><button class="btn ac" onclick="S.sheet=null;render()">Order Baru</button></div>`}
+ if(s.t==='sukses'){h=`<h2 class=ok>\u2713 Tersimpan${S.last.offline?' (offline)':''}</h2>${S.last.offline?'<div class=lbl>Belum terkirim ke server. Akan dikirim otomatis saat sinyal kembali.</div>':''}<div class=row><span>Total</span><b>${rp(S.last.total)}</b></div><div class=row><span>Kembalian</span><b>${rp(S.last.kembalian)}</b></div>${S.last.pelanggan?`<div class=row><span>Poin ${esc(S.last.pelanggan)}</span><b>+${S.last.poinDapat}${S.last.poinTukar?' / -'+S.last.poinTukar:''} \u00b7 saldo ${S.last.saldo}</b></div>`:''}<div style="display:grid;gap:8px;margin-top:12px"><button class=btn onclick="cetakSemua(S.last)">Cetak Semua (Struk, Label, Produksi)</button><div style="display:flex;gap:8px"><button class="btn ghost" style="padding:12px" onclick="prn('struk',S.last)">Struk</button><button class="btn ghost" style="padding:12px" onclick="prn('label',S.last)">Label</button><button class="btn ghost" style="padding:12px" onclick="prn('prod',S.last)">Produksi</button></div><button class="btn ac" onclick="S.sheet=null;render()">Order Baru</button></div>`}
  if(s.t==='produk')h=vForm();if(s.t==='lap')h=vLap();if(s.t==='uform')h=vUform();if(s.t==='pilihpel')h=vPilih();if(s.t==='pform')h=vPform();if(s.t==='pdet')h=vPdet();if(s.t==='kpoin')h=vKpoin();if(s.t==='fitur')h=vMS();if(s.t==='kedit')h=vKE();if(s.t==='resep')h=vResep();if(s.t==='bdet')h=vBdet();if(s.t==='stok')h=vStokForm();if(s.t==='bform')h=vBForm();
  return `<div class=ov onclick="if(event.target===this&&S.sheet.t!=='sukses'){S.sheet=null;render()}"><div class=sheet>${h}</div></div>`}
 function chg(x,d){S.cart[x].qty+=d;if(S.cart[x].qty<1)S.cart.splice(x,1);if(!S.cart.length)S.sheet=null;render()}
