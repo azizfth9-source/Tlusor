@@ -52,6 +52,7 @@ h2{margin:6px 0 12px;font-size:20px}
 @keyframes inl{from{transform:translateX(-100%)}}
 .dp button{background:var(--ac);color:#fff;border:0;border-radius:14px;padding:13px 18px;font:600 15px system-ui;text-align:left;position:relative;white-space:nowrap}
 .dp .dot{background:#fff;color:var(--ac);top:-5px;right:-5px}
+.lgl{width:92px;height:92px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 8px}
 </style></head><body><div id="app"></div>
 <script>
 const API='https://script.google.com/macros/s/AKfycbzRzd9iUHyB9iaLbn_7xYSSuMjb51yDs6KFs9yWFKHBDuMxxly3J2cVxORbHvq97ZBq/exec';
@@ -391,7 +392,7 @@ function chg(x,d){S.cart[x].qty+=d;if(S.cart[x].qty<1)S.cart.splice(x,1);if(!S.c
 
 function render(){
   const A=$('#app'),_sc=document.querySelector('.sheet'),_y=_sc?_sc.scrollTop:0;
-  if(!S.token||!S.init){A.innerHTML=`<div class=login><div class=logo>\u2615</div><h2>Kopi Tlusor POS</h2><input id=u class=in placeholder=Username autocapitalize=off><input id=p class=in type=password placeholder=Password><button class="btn ac" onclick="doLogin()" ${S.busy?'disabled':''}>${S.busy?'Memuat\u2026':'Masuk'}</button></div>`;
+  if(!S.token||!S.init){A.innerHTML=`<div class=login><img class=lgl src="icon-192.png" alt="" onerror="this.style.display='none'"><h2>POS Tlusor</h2><input id=u class=in placeholder=Username autocapitalize=off><input id=p class=in type=password placeholder=Password><button class="btn ac" onclick="doLogin()" ${S.busy?'disabled':''}>${S.busy?'Memuat\u2026':'Masuk'}</button></div>`;
     if(S.token&&!S.init&&!S.busy){S.busy=1;boot().then(()=>{S.busy=0;render()}).catch(()=>{S.busy=0;logout()})}return}
   const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu,dash:vDash,void:vVoid,akt:vAkt,laporan:vLaporan,pelanggan:vPelanggan,pengaturan:vSet,antrean:vAntrean}[S.tab]();
   A.innerHTML=`<div class=wrap>${qBanner()}${own()&&S.vp.length&&S.tab!=='void'?`<div class=box style="border-color:var(--ac);background:var(--acs)" onclick="go('void')"><b>${S.vp.length} pengajuan VOID menunggu konfirmasi</b></div>`:''}<h2>${({kasir:'Kasir',riwayat:'Riwayat Transaksi',kas:'Kas In / Kas Out',stok:'Stok Bahan',menu:'Menu & Resep',dash:'Dasbor',void:'Pengajuan VOID',akt:'Aktivitas & Closing',laporan:'Laporan Akuntansi',pelanggan:'Pelanggan',pengaturan:'Pengaturan',antrean:'Antrean Offline'})[S.tab]||''}</h2>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
