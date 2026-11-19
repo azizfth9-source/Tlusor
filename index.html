@@ -40,6 +40,18 @@ h2{margin:6px 0 12px;font-size:20px}
 .nav .nb svg{width:26px;height:26px}.lg{width:42px;height:42px;border-radius:50%;object-fit:cover}
 .dot{position:absolute;top:-3px;right:-3px;background:var(--ac);color:#fff;font:700 11px/18px system-ui;min-width:18px;height:18px;border-radius:9px;text-align:center;font-style:normal;padding:0 4px}
 .mi{padding:16px;border:1px solid var(--ln);border-radius:16px;background:#fff;font:600 16px system-ui;text-align:left;position:relative}
+.nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom)) 6px}
+.nav .nb.p{background:none;box-shadow:none;color:var(--ink);width:38px;height:38px;justify-self:end}
+.nav .nb.p svg{width:22px;height:22px}
+.nav .nl{justify-self:start;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:1px;position:relative;max-width:34vw;color:var(--ink)}
+.nav .nl .lg{width:34px;height:34px;border-radius:50%}
+.nav .nl small{font-size:10px;line-height:1.1;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.nav .nl .dot{top:-4px;right:-2px}
+.drawer{position:fixed;left:0;right:0;top:0;bottom:calc(84px + env(safe-area-inset-bottom));z-index:9}
+.dp{position:absolute;left:0;bottom:6px;width:max-content;min-width:190px;max-width:80vw;display:grid;gap:8px;padding:12px 14px 12px 8px;background:rgba(255,255,255,.75);backdrop-filter:blur(14px);border-radius:0 20px 20px 0;box-shadow:0 8px 24px rgba(0,0,0,.15);animation:inl .22s ease-out}
+@keyframes inl{from{transform:translateX(-100%)}}
+.dp button{background:var(--ac);color:#fff;border:0;border-radius:14px;padding:13px 18px;font:600 15px system-ui;text-align:left;position:relative;white-space:nowrap}
+.dp .dot{background:#fff;color:var(--ac);top:-5px;right:-5px}
 </style></head><body><div id="app"></div>
 <script>
 const API='https://script.google.com/macros/s/AKfycbzRzd9iUHyB9iaLbn_7xYSSuMjb51yDs6KFs9yWFKHBDuMxxly3J2cVxORbHvq97ZBq/exec';
@@ -90,7 +102,7 @@ async function loadTx(){try{S.tx=await api('listTx',{tanggal:S.tgl})}catch(e){to
 async function loadKas(){try{S.kas=await api('listKas2',{})}catch(e){toast(e.message,1)}render()}
 async function voidTx(id){const pin=prompt('Masukkan PIN Owner untuk VOID '+id);if(!pin)return;try{await api('voidTx',{id,pin});toast('Transaksi di-VOID');loadTx()}catch(e){toast(e.message,1)}}
 async function simpanKas(){const j=+$('#kj').value,k=$('#kk').value;try{await api('addKas',{jenis:S.jenis,jumlah:j,keterangan:k});toast(S.jenis+' tersimpan \u2713');loadKas()}catch(e){toast(e.message,1)}}
-function go(t){S.tab=t;S.sheet=null;render();if(t==='riwayat'){loadTx();pollVp()};if(t==='kas')loadKas();if(t==='menu')loadMenu();if(t==='stok')loadStok();if(t==='dash')loadDash();if(t==='void')pollVp(1)}
+function go(t){S.drawer=false;S.tab=t;S.sheet=null;render();if(t==='riwayat'){loadTx();pollVp()};if(t==='kas')loadKas();if(t==='menu')loadMenu();if(t==='stok')loadStok();if(t==='dash')loadDash();if(t==='void')pollVp(1)}
 
 
 const CFG=[['Opsi','Opsi order (Ukuran / Es / Gula)',['Jenis','Nama','Selisih Harga']],['KategoriOrder','Kategori order & markup harga',['Nama','Selisih Harga']],['MetodeBayar','Metode bayar',['Nama']]];
@@ -193,7 +205,9 @@ S.vp=[];
 const SV={cart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"/></svg>',pw:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg>'};
 const own=()=>S.user&&S.user.role==='Owner';
 function vNav(){const n=own()?S.vp.length:0;
-  return `<div class=nav><button class=nb onclick="S.sheet={t:'fitur'};render()" aria-label="Menu"><img class=lg src="icon-192.png" alt="" onerror="this.outerHTML='<b>Menu</b>'">${n?`<i class=dot>${n}</i>`:''}</button><button class="nb c" onclick="go('kasir')" aria-label="Kasir">${SV.cart}</button><button class="nb p" onclick="if(confirm('Keluar dari akun?'))logout()" aria-label="Keluar">${SV.pw}</button></div>`}
+  return `<div class=nav><button class=nl onclick="S.drawer=!S.drawer;render()" aria-label="Menu"><img class=lg src="icon-192.png" alt="" onerror="this.outerHTML='<b>Menu</b>'">${n?`<i class=dot>${n}</i>`:''}<small>${esc(S.user.nama)} \u00b7 ${esc(S.user.role)}</small></button><button class="nb c" onclick="go('kasir')" aria-label="Kasir">${SV.cart}</button><button class="nb p" onclick="if(confirm('Keluar dari akun?'))logout()" aria-label="Keluar">${SV.pw}</button></div>`}
+function vDrawer(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['void','Pengajuan VOID']]:[]);
+  return `<div class=drawer onclick="if(event.target===this){S.drawer=false;render()}"><div class=dp>${L.map(([k,n])=>`<button onclick="go('${k}')">${n}${k==='void'&&S.vp.length?`<i class=dot>${S.vp.length}</i>`:''}</button>`).join('')}</div></div>`}
 function vMS(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['void','Pengajuan VOID']]:[]);
   return `<h2>Menu</h2><div class=lbl style="margin:-6px 0 10px">${esc(S.user.nama)} \u00b7 ${esc(S.user.role)}</div><div style="display:grid;gap:8px">${L.map(([k,n])=>`<button class=mi onclick="go('${k}')">${n}${k==='void'&&S.vp.length?`<i class=dot style="top:14px;right:14px">${S.vp.length}</i>`:''}</button>`).join('')}</div>`}
 async function pollVp(force){try{const n=S.vp.length;S.vp=await api('listVoid',{});if(own()&&S.vp.length>n&&!force)toast('Pengajuan VOID baru dari staf');if(force||S.vp.length!==n)render()}catch(e){}}
@@ -209,7 +223,7 @@ function vVoid(){return S.vp.length?S.vp.map(x=>`<div class=box><div class=row s
 function editKas(j,i){const r=(j==='Kas In'?S.kas.masuk:S.kas.keluar)[i];S.sheet={t:'kedit',j,r,ket:r.Keterangan,jml:r.Jumlah};render()}
 function vKE(){const s=S.sheet;return `<h2>Edit ${s.j}</h2><input class=in placeholder="Keterangan" value="${esc(s.ket)}" oninput="S.sheet.ket=this.value"><input class=in type=number inputmode=numeric placeholder="Nominal (Rp)" value="${esc(s.jml)}" oninput="S.sheet.jml=this.value"><button class="btn ac" onclick="simpanEditKas()">Simpan Perubahan</button>`}
 async function simpanEditKas(){const s=S.sheet,r=s.r;try{await api('editKas',{jenis:s.j,row:r._row,jam:r.Jam,ketLama:r.Keterangan,jumlahLama:r.Jumlah,keterangan:s.ket,jumlah:s.jml});toast('Perubahan tersimpan \u2713');S.sheet=null;loadKas()}catch(e){toast(e.message,1)}}
-function vKas(){const L=(a,c,j)=>a.map((r,i)=>`<div class=row><span>${esc(String(r.Jam).slice(0,5))} \u00b7 ${esc(r.Keterangan)}</span><span><b class=${c}>${rp(r.Jumlah)}</b>${r.bisaEdit?` <button class=chip style="padding:6px 12px" onclick="editKas('${j}',${i})">Edit</button>`:''}</span></div>`).join('')||'<div class=empty>Kosong</div>';
+function vKas(){const L=(a,c,j)=>a.map((r,i)=>`<div class=row><span>${esc(String(r.Jam).slice(0,5))} \u00b7 ${esc(r.Keterangan)}</span><span><b class=${c}>${rp(r.Jumlah)}</b>${r.bisaEdit?` <button class=chip style="padding:7px 9px;line-height:0" onclick="editKas('${j}',${i})" aria-label="Edit"><svg width=16 height=16 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`:''}</span></div>`).join('')||'<div class=empty>Kosong</div>';
   return `<div class=chips>${['Kas In','Kas Out'].map(j=>`<button class="chip ${S.jenis===j?'on':''}" onclick="S.jenis='${j}';render()">${j}</button>`).join('')}</div><input id=kj class=in type=number inputmode=numeric placeholder="Nominal (Rp)"><input id=kk class=in placeholder="Keterangan"><button class="btn ac" onclick="simpanKas()">Simpan ${S.jenis}</button><h2 style="margin-top:18px">Kas In hari ini</h2>${L(S.kas.masuk,'ok','Kas In')}<h2 style="margin-top:18px">Kas Out hari ini</h2>${L(S.kas.keluar,'bad','Kas Out')}`}
 function vKasir(){
   const q=S.q.toLowerCase(),ps=S.init.produk.filter(p=>String(p.Nama).toLowerCase().includes(q));
@@ -237,7 +251,7 @@ function render(){
     if(S.token&&!S.init&&!S.busy){S.busy=1;boot().then(()=>{S.busy=0;render()}).catch(()=>{S.busy=0;logout()})}return}
   const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu,dash:vDash,void:vVoid}[S.tab]();
   A.innerHTML=`<div class=wrap>${own()&&S.vp.length&&S.tab!=='void'?`<div class=box style="border-color:var(--ac);background:var(--acs)" onclick="go('void')"><b>${S.vp.length} pengajuan VOID menunggu konfirmasi</b></div>`:''}<h2>${({kasir:'Kasir',riwayat:'Riwayat Transaksi',kas:'Kas In / Kas Out',stok:'Stok Bahan',menu:'Menu & Resep',dash:'Dasbor',void:'Pengajuan VOID'})[S.tab]||''}</h2>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
-  ${vNav()}${vSheet()}`;
+  ${vNav()}${S.drawer?vDrawer():''}${vSheet()}`;
   if(S.sheet&&S.sheet.t==='bayar')sum();if(S.sheet&&S.sheet.t==='stok')prev();const _s2=document.querySelector('.sheet');if(_s2)_s2.scrollTop=_y;
 }
 render();
