@@ -102,7 +102,7 @@ async function loadTx(){try{S.tx=await api('listTx',{tanggal:S.tgl})}catch(e){to
 async function loadKas(){try{S.kas=await api('listKas2',{})}catch(e){toast(e.message,1)}render()}
 async function voidTx(id){const pin=prompt('Masukkan PIN Owner untuk VOID '+id);if(!pin)return;try{await api('voidTx',{id,pin});toast('Transaksi di-VOID');loadTx()}catch(e){toast(e.message,1)}}
 async function simpanKas(){const j=+$('#kj').value,k=$('#kk').value;try{await api('addKas',{jenis:S.jenis,jumlah:j,keterangan:k});toast(S.jenis+' tersimpan \u2713');loadKas()}catch(e){toast(e.message,1)}}
-function go(t){S.drawer=false;S.tab=t;S.sheet=null;render();if(t==='riwayat'){loadTx();pollVp()};if(t==='kas')loadKas();if(t==='menu')loadMenu();if(t==='stok')loadStok();if(t==='dash')loadDash();if(t==='void')pollVp(1);if(t==='akt')loadAkt()}
+function go(t){S.drawer=false;S.tab=t;S.sheet=null;render();if(t==='riwayat'){loadTx();pollVp()};if(t==='kas')loadKas();if(t==='menu')loadMenu();if(t==='stok')loadStok();if(t==='dash')loadDash();if(t==='void')pollVp(1);if(t==='akt')loadAkt();if(t==='laporan')loadLap()}
 
 
 const CFG=[['Opsi','Opsi order (Ukuran / Es / Gula)',['Jenis','Nama','Selisih Harga']],['KategoriOrder','Kategori order & markup harga',['Nama','Selisih Harga']],['MetodeBayar','Metode bayar',['Nama']]];
@@ -206,9 +206,9 @@ const SV={cart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const own=()=>S.user&&S.user.role==='Owner';
 function vNav(){const n=own()?S.vp.length:0;
   return `<div class=nav><button class=nl onclick="S.drawer=!S.drawer;render()" aria-label="Menu"><img class=lg src="icon-192.png" alt="" onerror="this.outerHTML='<b>Menu</b>'">${n?`<i class=dot>${n}</i>`:''}<small>${esc(S.user.nama)} \u00b7 ${esc(S.user.role)}</small></button><button class="nb c" onclick="go('kasir')" aria-label="Kasir">${SV.cart}</button><button class="nb p" onclick="if(confirm('Keluar dari akun?'))logout()" aria-label="Keluar">${SV.pw}</button></div>`}
-function vDrawer(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan'],['akt','Aktivitas & Closing']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['void','Pengajuan VOID']]:[]);
+function vDrawer(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan'],['akt','Aktivitas & Closing']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['laporan','Laporan Akuntansi'],['void','Pengajuan VOID']]:[]);
   return `<div class=drawer onclick="if(event.target===this){S.drawer=false;render()}"><div class=dp>${L.map(([k,n])=>`<button onclick="go('${k}')">${n}${k==='void'&&S.vp.length?`<i class=dot>${S.vp.length}</i>`:''}</button>`).join('')}</div></div>`}
-function vMS(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan'],['akt','Aktivitas & Closing']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['void','Pengajuan VOID']]:[]);
+function vMS(){const L=[['kasir','Kasir'],['riwayat','Riwayat Transaksi'],['kas','Kas In / Kas Out'],['stok','Stok Bahan'],['akt','Aktivitas & Closing']].concat(own()?[['menu','Menu & Resep'],['dash','Dasbor'],['laporan','Laporan Akuntansi'],['void','Pengajuan VOID']]:[]);
   return `<h2>Menu</h2><div class=lbl style="margin:-6px 0 10px">${esc(S.user.nama)} \u00b7 ${esc(S.user.role)}</div><div style="display:grid;gap:8px">${L.map(([k,n])=>`<button class=mi onclick="go('${k}')">${n}${k==='void'&&S.vp.length?`<i class=dot style="top:14px;right:14px">${S.vp.length}</i>`:''}</button>`).join('')}</div>`}
 async function pollVp(force){try{const n=S.vp.length;S.vp=await api('listVoid',{});if(own()&&S.vp.length>n&&!force)toast('Pengajuan VOID baru dari staf');if(force||S.vp.length!==n)render()}catch(e){}}
 setInterval(()=>{if(S.token&&S.init&&!S.busy&&!S.sheet)pollVp()},30000);
@@ -248,6 +248,24 @@ function vAkt(){const A=S.akt;if(!A)return '<div class=empty>Memuat data...</div
   <div class=box><b>Kas laci (tunai)</b><input class=in style="margin-top:8px" type=number inputmode=numeric placeholder="Kas awal (kosong = Rp 0)" value="${esc(S.kasAwal)}" oninput="S.kasAwal=this.value;selUpd()">${row('+ Penjualan tunai',rp(A.tunai))}${row('+ Kas In',rp(A.kasIn),'ok')}${row('- Kas Out',rp(A.kasOut),'bad')}<div class=row><span>Kas seharusnya</span><b id=seh>${rp(seh())}</b></div>${ks(A.masuk,'ok')}${ks(A.keluar,'bad')}</div>
   <div class=box><b>Closing shift</b><input class=in style="margin-top:8px" type=number inputmode=numeric placeholder="Uang tunai di laci (hitung fisik)" value="${esc(S.fisik)}" oninput="S.fisik=this.value;selUpd()"><div id=sel class=lbl style="margin:0 0 8px"></div><input class=in placeholder="Catatan (opsional)" value="${esc(S.catC)}" oninput="S.catC=this.value"><button class="btn ac" onclick="closing()">Closing Shift</button></div>
   <h2 style="margin-top:18px">Riwayat Closing</h2>`+(S.sl.length?S.sl.map((x,i)=>`<div class=box onclick="bukaLap(${i})" style="cursor:pointer"><div class=row style="border:0;padding:0"><b>${esc(x.tgl)} ${esc(x.jam)}</b><b class="${x.selisih===0?'ok':'bad'}">${x.selisih>0?'+':''}${rp(x.selisih)}</b></div><small style="color:var(--mut)">${esc(x.kasir)} \u00b7 ${x.order} order \u00b7 omzet ${rp(x.omzet)} \u00b7 ketuk untuk membuka laporan</small></div>`).join(''):'<div class=empty>Belum ada closing.</div>')}
+
+S.lp={dari:dago(6),sampai:today(),k:7};S.lap=null;
+function setLP(n){S.lp={dari:dago(n-1),sampai:today(),k:n};loadLap()}
+async function loadLap(){S.lap=null;render();try{S.lap=await api('laporan',{dari:S.lp.dari,sampai:S.lp.sampai})}catch(e){toast(e.message,1)}render()}
+async function eksporLap(){try{toast('Mengekspor...');const r=await api('exportLaporan',{dari:S.lp.dari,sampai:S.lp.sampai});toast('Laporan diekspor ke Google Sheet');window.open(r.url,'_blank')}catch(e){toast(e.message,1)}}
+const pct=x=>(Math.round((x||0)*1000)/10)+'%';
+function vLaporan(){const P=S.lp,D=S.lap;
+  const f=`<div class=chips>${[[1,'Hari ini'],[7,'7 Hari'],[30,'1 Bulan']].map(([n,l])=>`<button class="chip ${P.k===n?'on':''}" onclick="setLP(${n})">${l}</button>`).join('')}<button class="chip ${P.k==='x'?'on':''}" onclick="S.lp.k='x';render()">Kustom</button></div>${P.k==='x'?`<div style="display:flex;gap:8px"><input type=date class=in value="${P.dari}" onchange="S.lp.dari=this.value;loadLap()"><input type=date class=in value="${P.sampai}" onchange="S.lp.sampai=this.value;loadLap()"></div>`:''}`;
+  if(!D)return f+'<div class=empty>Memuat data...</div>';
+  const kv=(l,v,c,b)=>`<div class=row><span${b?' style="font-weight:700"':''}>${l}</span><b class="${c||''}">${v}</b></div>`,bx=(t,h)=>`<div class=box><b>${t}</b>${h}</div>`,cl=v=>v>=0?'ok':'bad';
+  const lr=kv('Pendapatan penjualan',rp(D.omzet))+kv('HPP','- '+rp(D.hpp))+kv('Laba kotor',rp(D.labaKotor)+' ('+pct(D.marginKotor)+')',cl(D.labaKotor),1)+D.biaya.map(b=>kv('Biaya: '+esc(b.ket),'- '+rp(b.jumlah))).join('')+kv('Total biaya operasional','- '+rp(D.kasOut))+kv('Laba bersih',rp(D.labaBersih)+' ('+pct(D.marginBersih)+')',cl(D.labaBersih),1);
+  const bep=D.bepRp===null?'<div class=lbl>BEP belum bisa dihitung (laba kotor belum positif).</div>':kv('Biaya tetap (Kas Out)',rp(D.kasOut))+kv('Rasio kontribusi',pct(D.cm))+kv('BEP omzet periode',rp(D.bepRp))+kv('BEP omzet per hari',rp(D.bepHarian))+kv('Omzet rata-rata per hari',rp(D.omzetHarian))+kv('BEP jumlah item',fmt(Math.ceil(D.bepQty||0)))+kv('Margin of safety',pct(D.mos),cl(D.mos))+`<div class=lbl style="margin:6px 0 0">${D.omzet>=D.bepRp?'Sudah melewati titik impas.':'Belum mencapai titik impas.'}</div>`;
+  const hr=D.harian.length?D.harian.map(h=>kv(esc(h.tgl)+' \u00b7 '+h.order+' order',rp(h.omzet))).join(''):'<div class=lbl>Belum ada penjualan.</div>';
+  const mn=D.menu.length?D.menu.map(m=>kv(esc(m.menu)+' \u00b7 '+fmt(m.qty)+' item',rp(m.omzet)+' \u00b7 laba '+rp(m.omzet-m.hpp))).join(''):'<div class=lbl>Belum ada penjualan.</div>';
+  const jn=D.jenis.map(j=>kv(esc(j.jenis)+' \u00b7 '+j.order+' order \u00b7 '+j.qty+' item',rp(j.omzet))).join('')||'<div class=lbl>-</div>';
+  const mt=D.metode.map(m=>kv(esc(m.metode),rp(m.jumlah))).join('')||'<div class=lbl>-</div>';
+  const ak=kv('Penjualan',rp(D.omzet))+kv('Kas In',rp(D.kasIn))+kv('Pembelian bahan (Stok In)','- '+rp(D.stokIn))+kv('Kas Out','- '+rp(D.kasOut))+kv('Arus kas bersih',rp(D.omzet+D.kasIn-D.stokIn-D.kasOut),cl(D.omzet+D.kasIn-D.stokIn-D.kasOut),1)+kv('Nilai persediaan saat ini',rp(D.nilaiStok));
+  return f+`<button class="btn ac" style="margin-bottom:10px" onclick="eksporLap()">Ekspor ke Google Sheet</button>`+bx('Laba Rugi',lr)+bx('Break Even Point (BEP)',bep)+bx('Arus Kas',ak)+bx('Penjualan per Hari',hr)+bx('Penjualan per Menu',mn)+bx('Per Jenis Pesanan',jn)+bx('Per Metode Bayar',mt)}
 function vKasir(){
   const q=S.q.toLowerCase(),ps=S.init.produk.filter(p=>String(p.Nama).toLowerCase().includes(q));
   return `<input class=in placeholder="Cari menu" value="${esc(S.q)}" onchange="S.q=this.value;render()">`+
@@ -272,8 +290,8 @@ function render(){
   const A=$('#app'),_sc=document.querySelector('.sheet'),_y=_sc?_sc.scrollTop:0;
   if(!S.token||!S.init){A.innerHTML=`<div class=login><div class=logo>\u2615</div><h2>Kopi Tlusor POS</h2><input id=u class=in placeholder=Username autocapitalize=off><input id=p class=in type=password placeholder=Password><button class="btn ac" onclick="doLogin()" ${S.busy?'disabled':''}>${S.busy?'Memuat\u2026':'Masuk'}</button></div>`;
     if(S.token&&!S.init&&!S.busy){S.busy=1;boot().then(()=>{S.busy=0;render()}).catch(()=>{S.busy=0;logout()})}return}
-  const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu,dash:vDash,void:vVoid,akt:vAkt}[S.tab]();
-  A.innerHTML=`<div class=wrap>${own()&&S.vp.length&&S.tab!=='void'?`<div class=box style="border-color:var(--ac);background:var(--acs)" onclick="go('void')"><b>${S.vp.length} pengajuan VOID menunggu konfirmasi</b></div>`:''}<h2>${({kasir:'Kasir',riwayat:'Riwayat Transaksi',kas:'Kas In / Kas Out',stok:'Stok Bahan',menu:'Menu & Resep',dash:'Dasbor',void:'Pengajuan VOID',akt:'Aktivitas & Closing'})[S.tab]||''}</h2>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
+  const body={kasir:vKasir,riwayat:vRiwayat,kas:vKas,stok:vStok,menu:vMenu,dash:vDash,void:vVoid,akt:vAkt,laporan:vLaporan}[S.tab]();
+  A.innerHTML=`<div class=wrap>${own()&&S.vp.length&&S.tab!=='void'?`<div class=box style="border-color:var(--ac);background:var(--acs)" onclick="go('void')"><b>${S.vp.length} pengajuan VOID menunggu konfirmasi</b></div>`:''}<h2>${({kasir:'Kasir',riwayat:'Riwayat Transaksi',kas:'Kas In / Kas Out',stok:'Stok Bahan',menu:'Menu & Resep',dash:'Dasbor',void:'Pengajuan VOID',akt:'Aktivitas & Closing',laporan:'Laporan Akuntansi'})[S.tab]||''}</h2>${body}</div>${S.tab==='kasir'&&S.cart.length&&!S.sheet?`<div class=bar><button class="btn ac" onclick="openBayar()">${cnt()} item \u00b7 ${rp(total())} \u2192 Bayar</button></div>`:''}
   ${vNav()}${S.drawer?vDrawer():''}${vSheet()}`;
   if(S.sheet&&S.sheet.t==='bayar')sum();if(S.sheet&&S.sheet.t==='stok')prev();if(S.tab==='akt')selUpd();const _s2=document.querySelector('.sheet');if(_s2)_s2.scrollTop=_y;
 }
